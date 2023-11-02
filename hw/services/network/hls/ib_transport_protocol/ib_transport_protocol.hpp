@@ -390,6 +390,25 @@ public:
 	{
 		return ibOpCode((uint16_t) header(7, 0));
 	}
+	
+	// New setter-methods for the Opcode-Bits - order is somehow reversed compared to the comments given above this function 
+	void setSolicitedEvent(bool bit)
+	{
+		header[15] = bit;
+	}
+	void setMigReq(bool bit)
+	{
+		header[14] = bit;
+	}
+	void setPadCount(ap_uint<2> pad_count)
+	{
+		header(13, 12) = pad_count;
+	}
+	void setHeaderVersion(ap_uint<4> header_version)
+	{
+		header(11, 8) = header_version;
+	}
+
 	void setPartitionKey(ap_uint<16> key)
 	{
 		header(31, 16) = key;

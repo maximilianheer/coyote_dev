@@ -1423,6 +1423,10 @@ void generate_ibh(
 
 			header.setOpCode(meta.op_code);
 			header.setPartitionKey(meta.partition_key);
+
+			// Set MigReq-Bit to 0
+			header.setMigReq(true);
+
 			//PSN only valid for READ_RSP, otherwise we get it in state GET_PSN
 			header.setPsn(meta.psn);
 			header.setDstQP(dstQp); //TODO ist meta.dest_qp required??
@@ -1653,7 +1657,7 @@ void generate_exh(
 			{
 				// [BTH][AETH][PayLd]
 				//AETH for first and last
-				ackHeader.setSyndrome(0x1f);
+				ackHeader.setSyndrome(0x00);
 				ackHeader.setMsn(msnMeta.msn);
 				std::cout << "[GENERATE EXH " << INSTID << "]: RDMA_READ_RESP MSN:" << ackHeader.getMsn() << std::endl;
 				ackHeader.consumeWord(sendWord.data); //TODO
@@ -1697,7 +1701,7 @@ void generate_exh(
 				//Check if ACK or NAK
 				if (!meta.isNak)
 				{
-					ackHeader.setSyndrome(0x1f);
+					ackHeader.setSyndrome(0x00);
 				}
 				else
 				{
