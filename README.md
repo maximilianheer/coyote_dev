@@ -9,6 +9,12 @@
 [![Build benchmarks](https://github.com/fpgasystems/Coyote/actions/workflows/build_mem.yml/badge.svg?branch=master)](https://github.com/fpgasystems/Coyote/actions/workflows/build_mem.yml)
 [![Build benchmarks](https://github.com/fpgasystems/Coyote/actions/workflows/build_pr.yml/badge.svg?branch=master)](https://github.com/fpgasystems/Coyote/actions/workflows/build_pr.yml)
 
+## _Own Development Branch_
+Change the following elements of Coyote: 
+- Adapted BTH for assimilation with Mellanox-issued ACKs
+- Support for GID and rkey as required for communication with Mellanox-Cards
+- Support for ICRC in Coyote
+
 ## _OS for FPGAs_
 
 Framework providing operating system abstractions and a range of shared networking (*RDMA*, *TCP/IP*) and memory services to common modern heterogeneous platforms.
