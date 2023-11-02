@@ -29,8 +29,8 @@ void ibvQ::uintToGid(int idx, uint32_t ip_addr) {
 }
 
 void ibvQ::print(const char *name) {
-    printf("%s: QPN 0x%06x, PSN 0x%06x, VADDR %016lx, SIZE %08x, IP 0x%08x,\n",
-         name, qpn, psn, (uint64_t)vaddr, size, ip_addr);
+    printf("%s: QPN 0x%06x, PSN 0x%06x, VADDR %016lx, SIZE %08x, RKEY %08x, IP 0x%08x,\n",
+         name, qpn, psn, (uint64_t)vaddr, size, rkey, ip_addr);
 }
 
 ibvQpPool::ibvQpPool(int32_t n_el) {

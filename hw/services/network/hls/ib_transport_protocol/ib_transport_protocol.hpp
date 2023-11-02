@@ -136,18 +136,20 @@ struct ifConnReq
 				:qpn(qpn), remote_qpn(remote_qpn), remote_ip_address(remote_ip_address), remote_udp_port(remote_udp_port) {}
 };
 
+// rkey must be part of this struct, since this forms the input queue to the handle_read_req, which feeds the meta_merger
 struct readRequest
 {
 	ap_uint<24> qpn;
 	ap_uint<64> vaddr;
+	ap_uint<32> rkey;
 	ap_uint<32> dma_length;
 	ap_uint<24> psn;
 	ap_uint<1>  host;
 	
 	readRequest() {}
-	readRequest(ap_uint<24> qpn, ap_uint<64> vaddr, ap_uint<32> len, ap_uint<24> psn)
+	readRequest(ap_uint<24> qpn, ap_uint<64> vaddr, ap_uint<32> rkey, ap_uint<32> len, ap_uint<24> psn)
 //		:qpn(qpn), vaddr(vaddr), dma_length(len), psn(psn) {}
-		:qpn(qpn), vaddr(vaddr), dma_length(len), psn(psn), host(1) {}
+		:qpn(qpn), vaddr(vaddr), rkey(rkey), dma_length(len), psn(psn), host(1) {}
 };
 
 struct fwdPolicy
@@ -171,23 +173,25 @@ struct dstTuple
 };
 
 /* Internal read */
+// Add a field for the rkey, as it also caters the vaddr
 struct memCmdInternal
 {
 	ibOpCode op_code;
 	ap_uint<16> qpn; //TODO required
 	ap_uint<64> addr;
+	ap_uint<32> rkey;
 	ap_uint<32> len;
 	ap_uint<1>  host;
     ap_uint<1>  sync;
     ap_uint<4>  offs;
 	memCmdInternal() {}
-	memCmdInternal(ibOpCode op, ap_uint<16> qpn, ap_uint<64> addr, ap_uint<32> len, ap_uint<1> host)
-		: op_code(op), qpn(qpn), addr(addr), len(len), host(host), sync(0), offs(0) {}
-    memCmdInternal(ibOpCode op, ap_uint<16> qpn, ap_uint<64> addr, ap_uint<32> len, ap_uint<1> host, ap_uint<4> offs)
-		: op_code(op), qpn(qpn), addr(addr), len(len), host(host), sync(1), offs(offs) {}
+	memCmdInternal(ibOpCode op, ap_uint<16> qpn, ap_uint<64> addr, ap_uint<32> rkey, ap_uint<32> len, ap_uint<1> host)
+		: op_code(op), qpn(qpn), addr(addr), rkey(rkey), len(len), host(host), sync(0), offs(0) {}
+    memCmdInternal(ibOpCode op, ap_uint<16> qpn, ap_uint<64> addr, ap_uint<32> rkey, ap_uint<32> len, ap_uint<1> host, ap_uint<4> offs)
+		: op_code(op), qpn(qpn), addr(addr), rkey(rkey), len(len), host(host), sync(1), offs(offs) {}
     // TODO: need to set some default value?
-    memCmdInternal(ap_uint<16> qpn, ap_uint<64> addr, ap_uint<32> len)
-        : qpn(qpn), addr(addr), len(len), host(1), sync(0) {}
+    memCmdInternal(ap_uint<16> qpn, ap_uint<64> addr, rkey(rkey), ap_uint<32> len)
+        : qpn(qpn), addr(addr), rkey(rkey), len(len), host(1), sync(0) {}
 };
 
 /* Mem command */
@@ -234,16 +238,18 @@ struct txPacketInfo
 
 struct txMeta
 {
+	// Store rkey as its own field - I don't know what's going on inside params. Since rkey is 32 bit, the whole thing will still be byte-aligned. 
 	ibOpCode 	 op_code; // 32
 	ap_uint<10>  qpn; // vfid, pid
 	ap_uint<1>   host;
 	ap_uint<1>   lst;
 	ap_uint<4>   offs;
 	ap_uint<192> params;
+	ap_uint<32> rkey;
 	txMeta()
 		:op_code(RC_RDMA_WRITE_ONLY) {}
-	txMeta(ibOpCode op, ap_uint<10> qp, ap_uint<1> host, ap_uint<1> lst, ap_uint<4> offs, ap_uint<192> params)
-				:op_code(op), qpn(qp), host(host), lst(lst), offs(offs), params(params) {}
+	txMeta(ibOpCode op, ap_uint<10> qp, ap_uint<1> host, ap_uint<1> lst, ap_uint<4> offs, ap_uint<192> params, ap_uint<32> rkey)
+				:op_code(op), qpn(qp), host(host), lst(lst), offs(offs), params(params), rkey(rkey) {}
 };
 
 /* ACK meta */
@@ -275,15 +281,19 @@ struct ackEvent
 
 //TODO create readEvent
 //TODO event for writes addr + len, no psn
+// rkey should be handled exactly as qpn & addr and thus be included here
 struct event
 {
 	ibOpCode 	op_code;
 	ap_uint<24> qpn;
 	ap_uint<64> addr;
+	ap_uint<32> rkey; // Added here to make it comparable to qpn and addr
 	ap_uint<32> length;
 	ap_uint<24>	psn;
 	bool		validPsn;
 	bool		isNak;
+
+	// Add rkey to all the functions that take the vaddr as input parameter - these will likely require memory access
 	event()
 		:op_code(RC_ACK), validPsn(false), isNak(false) {}
 	event(ibOpCode op, ap_uint<24> qp)
@@ -294,12 +304,12 @@ struct event
 		:op_code(op), qpn(qp), psn(psn), validPsn(true), isNak(nak) {}*/
 	event(ibOpCode op, ap_uint<24> qp, ap_uint<32> len)
 		:op_code(op), qpn(qp), addr(0), length(len), psn(0), validPsn(false), isNak(false) {}
-	event(ibOpCode op, ap_uint<24> qp, ap_uint<64> addr, ap_uint<32> len)
-		:op_code(op), qpn(qp), addr(addr), length(len), psn(0), validPsn(false), isNak(false) {}
+	event(ibOpCode op, ap_uint<24> qp, ap_uint<64> addr, ap_uint<32> rkey, ap_uint<32> len)
+		:op_code(op), qpn(qp), addr(addr), rkey(rkey), length(len), psn(0), validPsn(false), isNak(false) {}
 	event(ibOpCode op, ap_uint<24> qp, ap_uint<32> len, ap_uint<24> psn)
 		:op_code(op), qpn(qp), addr(0), length(len), psn(psn), validPsn(true), isNak(false) {}
-	event(ibOpCode op, ap_uint<24> qp, ap_uint<64> addr, ap_uint<32> len, ap_uint<24> psn)
-		:op_code(op), qpn(qp), addr(addr), length(len), psn(psn), validPsn(true), isNak(false) {}
+	event(ibOpCode op, ap_uint<24> qp, ap_uint<64> addr, ap_uint<32> rkey, ap_uint<32> len, ap_uint<24> psn)
+		:op_code(op), qpn(qp), addr(addr), rkey(rkey), length(len), psn(psn), validPsn(true), isNak(false) {}
 };
 
 /* Pakage info */
@@ -438,6 +448,7 @@ public:
 		header[71] = bit;
 	}
 };
+
 
 struct ibhMeta
 {

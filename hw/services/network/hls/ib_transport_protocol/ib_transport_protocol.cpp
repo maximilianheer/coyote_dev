@@ -897,6 +897,7 @@ void handle_read_requests(
 	static readRequest request; //Need QP, dma_length, vaddr
 	ibOpCode readOpcode;
 	ap_uint<64> readAddr;
+	ap_uint<32> readrKey;
 	ap_uint<32> readLength;
 	ap_uint<32> dmaLength;
 
@@ -907,6 +908,7 @@ void handle_read_requests(
 		{
 			requestIn.read(request);
 			readAddr = request.vaddr;
+			readrKey = request.rkey;
 			readLength = request.dma_length;
 			dmaLength = request.dma_length;
 			readOpcode = RC_RDMA_READ_RESP_ONLY;
@@ -919,13 +921,16 @@ void handle_read_requests(
 				hrr_fsmState = GENERATE;
 			}
 
-			memoryReadCmd.write(memCmdInternal(readOpcode, request.qpn, readAddr, readLength, request.host));
+			// Added the rkey to this memoryReadCmd
+			memoryReadCmd.write(memCmdInternal(readOpcode, request.qpn, readAddr, readrKey, readLength, request.host));
+			// Since this doesn't evoke the vaddr, it's probably not required to evoke the rkey either
 			readEventFifo.write(event(readOpcode, request.qpn, readLength, request.psn));
             std::cout << "[READ_HANDLER " << INSTID << "]: read handler init packet, psn " << request.psn << std::endl;
 		}
 		break;
 	case GENERATE:
 		readAddr = request.vaddr;
+		readrKey = request.rkey;
 		readLength = request.dma_length;
 
 		if (request.dma_length > PMTU)
@@ -943,7 +948,8 @@ void handle_read_requests(
             std::cout << "[READ_HANDLER " << INSTID << "]: read handler last packet, psn " << request.psn << std::endl;
 		}
 		request.psn++;
-		memoryReadCmd.write(memCmdInternal(readOpcode, request.qpn, readAddr, readLength, request.host));
+		memoryReadCmd.write(memCmdInternal(readOpcode, request.qpn, readAddr, readrKey, readLength, request.host));
+		// Same as before: If vaddr is evoked, why do it for the rkey?
 		readEventFifo.write(event(readOpcode, request.qpn, readLength, request.psn));
 
 		break;
@@ -1061,6 +1067,8 @@ void local_req_handler(
 	ap_uint<64> laddr;
 	ap_uint<64> raddr;
 	ap_uint<32> length;
+	// Added a variable for the rkey
+	ap_uint<32> rkey;
     ap_uint<1>  lst;
     ap_uint<4>  offs;
 
@@ -1095,6 +1103,8 @@ void local_req_handler(
 		laddr = meta.params(63,0);
 		raddr = meta.params(127,64);
 		length = meta.params(159,128);
+		// Read the rkey from the meta-input
+		rkey = meta.rkey;
         lst = meta.lst;
         offs = meta.offs;
 
@@ -1109,8 +1119,9 @@ void local_req_handler(
 			meta.op_code == RC_RDMA_WRITE_LAST || meta.op_code == RC_RDMA_WRITE_ONLY || meta.op_code == RC_SEND_ONLY ||
             meta.op_code == RC_SEND_FIRST || meta.op_code == RC_SEND_MIDDLE || meta.op_code == RC_SEND_LAST)
 		{
-			tx_localTxMeta.write(event(meta.op_code, meta.qpn, raddr, length));
-			tx_local_memCmdFifo.write(memCmdInternal(meta.op_code, meta.qpn, laddr, length, meta.host));	
+			// add the rkey in these write-commands
+			tx_localTxMeta.write(event(meta.op_code, meta.qpn, raddr, meta.rkey, length));
+			tx_local_memCmdFifo.write(memCmdInternal(meta.op_code, meta.qpn, laddr, meta.rkey, length, meta.host));	
 		}
 #ifdef RETRANS_EN
 		tx2retrans_insertAddrLen.write(retransAddrLen(laddr, raddr, length, lst, offs));
