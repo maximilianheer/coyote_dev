@@ -38,43 +38,54 @@ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "multi_queue/multi_queue.hpp"
 
 // ------------------------------------------------------------------------------------------------
-// RX path
+// RX path - process incoming RDMA packets with IBH header (a.k.a. RDMA packets)
 // ------------------------------------------------------------------------------------------------
 
 /** 
- * RX process IBH
+ * RX process IBH - first point of contact for incoming RDMA packets, dissects the Meta-information from the incoming packets
  */
 template <int WIDTH, int INSTID = 0>
 void rx_process_ibh(	
 #ifdef DBG_IBV
 	stream<psnPkg>& m_axis_dbg,
 #endif
+	// Input stream for incoming RDMA-packets
 	stream<net_axis<WIDTH> >& input,
+	// First output stream for meta information - contains opcode, partition key, destination qp, psn, validPSN and packet number
 	stream<ibhMeta>& metaOut,
+	// Second output stream for meta information - only the opcode 
 	stream<ibOpCode>& metaOut2,
+	// Output for packets for further processing 
 	stream<net_axis<WIDTH> >& output,
+	// Counter for packets? - Investigate! 
 	ap_uint<32>&		regIbvCountRx
 ) {
 //
 #pragma HLS inline off
 #pragma HLS pipeline II=1
-
+	// Create BaseTransportHeader, metaWritten-bool
 	static BaseTransportHeader<WIDTH> bth;
 	static bool metaWritten = false;
 	static ap_uint<32> validRx = 0;
 
-	net_axis<WIDTH> currWord;
+	net_axis<WIDTH> currWord; // data type of incoming stream
 
 	if (!input.empty()) {
+		// Read current input into the word-variable
 		input.read(currWord);
+
+		// parse word to infiniband header
 		bth.parseWord(currWord.data);
 
+		// Increment the word counter and pass it to Ibv-Counter
 		validRx++;
 		regIbvCountRx = validRx;
 
+		// If read word is ready, write it to output and write output
 		if (bth.isReady()) {
 			output.write(currWord);
 			
+			// Write the output as required 
 			if (!metaWritten) {
 				std::cout << "[RX PROCESS IBH " << INSTID << "]: input psn " << std::hex << bth.getPsn() << std::endl;
             	metaOut.write(ibhMeta(bth.getOpCode(), bth.getPartitionKey(), bth.getDstQP(), bth.getPsn(), true));
@@ -85,6 +96,7 @@ void rx_process_ibh(
 			}
 		}
 		
+		// If the last-bit is set, reset everything again. 
 		if (currWord.last) {
 			bth.clear();
 			metaWritten = false;
@@ -97,39 +109,48 @@ void rx_process_ibh(
 }
 
 /**
- * RX process EXH
+ * RX process EXH - Handles the extended header (either ACK or WRITE, follows the BTH)
  */
 template <int WIDTH, int INSTID = 0>
 void rx_process_exh(
-	stream<net_axis<WIDTH> >& input,
-	stream<ibOpCode>& metaIn,
-	stream<exhMeta>& exhMetaFifo,
-	stream<ExHeader<WIDTH> >& metaOut,
-	stream<net_axis<WIDTH> >& output
+	stream<net_axis<WIDTH> >& input, // Input for the incoming packets
+	stream<ibOpCode>& metaIn, // Input for Meta - only the Opcodes
+	stream<exhMeta>& exhMetaFifo, // Meta-Output: bit for ACK / NACK, packet number
+ 	stream<ExHeader<WIDTH> >& metaOut, // Dissected Extended Header
+	stream<net_axis<WIDTH> >& output // Pass on of the original input 
 ) {
 #pragma HLS inline off
 #pragma HLS pipeline II=1
 
+	// Definition of the State Machine for processing different kinds of Extended Headers
 	enum fsmStateType {META, ACK_HEADER, RETH_HEADER, NO_HEADER};
-
 	static fsmStateType state = META;
 
+	// RDMA-Extended Header (for READ, WRITE etc.)
 	static RdmaExHeader<WIDTH> rdmaHeader;
+
+	// ACK-Extended Header
 	static AckExHeader<WIDTH> ackHeader;
 
+	// Check whether meta-information was already written 
 	static bool metaWritten = false;
 
+	// Input-word as read from the stream 
 	net_axis<WIDTH> currWord;
 	static ibOpCode opCode;
 
+	// State-Machine for handling the various different types of Extended Headers 
 	switch (state)
 	{
+	// Idle-state for reading Input and deciding on the type of packet for further processing
 	case META:
 		if (!metaIn.empty())
 		{
+			// Read only the opcode 
 			metaIn.read(opCode);
 			metaWritten = false;
 
+			// Decide with opcode whether it's an ACK, RDMA or none, switch state accordingly
 			if (checkIfAethHeader(opCode))
 			{
 				state = ACK_HEADER;
@@ -144,25 +165,38 @@ void rx_process_exh(
 			}
 		}
 		break;
+	
+	// Deal with a recognized ACK Ex-Header
 	case ACK_HEADER:
+		// Read the packet from input if available 
 		if (!input.empty())
 		{
 			input.read(currWord);
+
+			// Get the ACK-Ex-Header from the input-word
 			ackHeader.parseWord(currWord.data);
 
+			// Check if the header is ready
 			if (ackHeader.isReady())
 			{
+				// Sent out for further processing only if it's not an ACK (but a Read Response)
 				if (opCode != RC_ACK)
 				{
 					output.write(currWord);
 				}
+
+				// Meta not written: Write to the output-meta-queues
 				if (!metaWritten)
 				{
+					// FIFO: Write out single bit whether the ACK is a NAK
 					exhMetaFifo.write(exhMeta(ackHeader.isNAK()));
+					// Write out the dissected ACK-Ex Header
 					metaOut.write(ExHeader<WIDTH>(ackHeader));
 					metaWritten = true;
 				}
 			}
+
+			// If last word, clean up everything
 			if (currWord.last)
 			{
 				ackHeader.clear();
@@ -170,37 +204,53 @@ void rx_process_exh(
 			}
 		}
 		break;
+
+	// Deal with a recognized RDMA Ex-Header
 	case RETH_HEADER:
+		// Read the packet from input if available
 		if (!input.empty())
 		{
 			input.read(currWord);
+
+			// Parse the RDMA Ex-Header from the input word 
 			rdmaHeader.parseWord(currWord.data);
 
+			// Write out word to the output stream if meta has already been processed (by a previous packet from the same stream)
 			if (metaWritten && WIDTH <= RETH_SIZE)
 			{
 				output.write(currWord);
 			}
 
+			// If the RDMA-Header is ready, proceed with processing 
 			if (rdmaHeader.isReady())
 			{
 				if (!metaWritten)
 				{
+					// Decide between READ_REQUEST and WRITEs to write out to the Meta-FIFO
 					if (opCode == RC_RDMA_READ_REQUEST)
 					{
+						// Is not NAK, number of packets derived by length of read access
 						exhMetaFifo.write(exhMeta(false, (rdmaHeader.getLength()+(PMTU-1))/PMTU));
 					}
 					else
 					{
+						// Is not NAK
 						exhMetaFifo.write(exhMeta(false));
 					}
+					// Write out the dissected RDMA Ex-Header 
 					metaOut.write(ExHeader<WIDTH>(rdmaHeader));
+					// Set metaWritten true 
 					metaWritten = true;
 				}
+
+				// If it's a WRITE, pass it on in the queue 
 				if (checkIfWrite(opCode) && WIDTH > RETH_SIZE)
 				{
 					output.write(currWord);
 				}
 			}
+
+			// Clean up in the end 
 			if (currWord.last)
 			{
 				rdmaHeader.clear();
@@ -208,7 +258,10 @@ void rx_process_exh(
 			}
 		}
 		break;
+
+	// Treatment if no header is provided 
 	case NO_HEADER:
+		// If input is available, read it and pass it on. Write empty META (where should it come from if no header is provided?)
 		if (!input.empty())
 		{
 			input.read(currWord);
@@ -236,7 +289,7 @@ void rx_process_exh(
 }
 
 /**
- * RX IBH fsm
+ * RX IBH fsm - State Machine for further dealing with the information from the InfiniBand Base Transport Header
  * 
  * PSN handling page
  * page 298, responser receiving requests
@@ -253,36 +306,55 @@ void rx_process_exh(
 //TODO actually any response in Unack region is valid, not just the next one.
 template <int INSTID = 0>
 void rx_ibh_fsm(
+	// Base Transport Header, received from rx_process_ibh
 	stream<ibhMeta>& metaIn,
+	// NAK-bit (and pkg-number), received from rx_process_exh
 	stream<exhMeta>& exhMetaFifo,
+	// Input from the state table: has information on epsn (expected ? psn), oldest outstanding psn, max_forwarding and retryCounter - has to do with handling retransmissions
 	stream<rxStateRsp>& stateTable_rsp,
+	// Output to the state table: has information on qpn, epsn, retryCounter and bools for isResponse and WRITE
 	stream<rxStateReq>& stateTable_upd_req,
+	// Passes on the NAK-Bit from rx_process_exh
 	stream<ibhMeta>& metaOut,
+	// Output to the stream merge module: Ack-event with information on qpn, psn, valid signal for psn, NAK-bit
 	stream<ackEvent>& ibhEventFifo,
+	// Output to ipUdpMetahandler: Single Bit to show if packet should be dropped 
 	stream<bool>& ibhDropFifo,
+	// Output to ipUdpMetahandler: Single bits for drop and ack. 
 	stream<fwdPolicy>& ibhDropMetaFifo,
+	// Output to rx_exh_fsm: One bit rd (no idea for what), qpn, psn
 	stream<ackMeta>& m_axis_rx_ack_meta,
 #ifdef RETRANS_EN
 	stream<rxTimerUpdate>&	rxClearTimer_req,
 	stream<retransUpdate>&	rx2retrans_upd,
 #endif
+	// Counter for dropped packets
 	ap_uint<32>&		regInvalidPsnDropCount
 ) {
 #pragma HLS inline off
 #pragma HLS pipeline II=1
 
+	// Define a 2-state FSM
 	enum fsmStateType{LOAD, PROCESS};
 	static fsmStateType fsmState = LOAD;
 
+	// Variable for BTH
 	static ibhMeta meta;
+
+	// Variable for Extended Header 
 	static exhMeta emeta;
+
+	// Single bit for is Response 
 	static bool isResponse;
 	static ap_uint<32> droppedPackets = 0;
+
+	// State of the QueuePair: Dealing with PSNs, retry counter etc. 
 	rxStateRsp qpState;
 
 
 	switch(fsmState)
 	{
+	// LOAD: Idle-state to read the BTH, ExH, check if it's a response and write destination qp and response-bit to the state table
 	case LOAD:
 		if (!metaIn.empty() && !exhMetaFifo.empty())
 		{
@@ -296,6 +368,8 @@ void rx_ibh_fsm(
 	case PROCESS:
 		//TODO TIME-WAIT
 		//TODO consider opCode??
+
+		// If available, read entry from the State Table 
 		if (!stateTable_rsp.empty())
 		{
 			stateTable_rsp.read(qpState);
@@ -309,20 +383,21 @@ void rx_ibh_fsm(
 			// For requests we require total order, for responses, there is potential ACK coalescing, see page 299
 			// For requests, max_forward == epsn
 
+			// Easy case: current psn is the expected psn, or packet is an ACK
 			if (qpState.epsn == meta.psn || meta.op_code == RC_ACK)
 			{
 
-				// Forwarding
+				// Forwarding - Packet won't get dropped 
 				if (meta.op_code != RC_ACK && meta.op_code != RC_RDMA_READ_REQUEST) //TODO do length check instead
 				{
 					ibhDropFifo.write(false);
                 }
 				ibhDropMetaFifo.write(fwdPolicy(false, false));
 
-				// EXH
+				// Write out the BTH 
 				metaOut.write(ibhMeta(meta.op_code, meta.partition_key, meta.dest_qp, meta.psn, meta.validPSN));
 
-				// Update psn
+				// Update psn with the Pkg-number as received from the Extended Header Meta Content. Write it to the State Table. 
 				//TODO for last param we need vaddr here!
 				if (!emeta.isNak && (meta.op_code != RC_ACK || ((qpState.epsn <= meta.psn && meta.psn <= qpState.max_forward)
 					|| ((qpState.epsn <= meta.psn || meta.psn <= qpState.max_forward) && qpState.max_forward < qpState.epsn))))
@@ -358,7 +433,7 @@ void rx_ibh_fsm(
 				}
 #endif
 			}
-			// Check for duplicates
+			// Check for duplicates - something's off with the psns, so that additional checks for duplicates must be executed 
 			// For response: epsn = old_unack, old_oustanding = old_valid
 			else if ((qpState.oldest_outstanding_psn < qpState.epsn && meta.psn < qpState.epsn && meta.psn >= qpState.oldest_outstanding_psn)
 					 || (qpState.oldest_outstanding_psn > qpState.epsn && (meta.psn < qpState.epsn || meta.psn >= qpState.oldest_outstanding_psn)))
@@ -368,6 +443,7 @@ void rx_ibh_fsm(
 				{
 					std::cout << std::hex << "[RX IBH FSM" << INSTID << "]: duplicate read_req psn " << meta.psn << std::endl;
 					//ibhDropFifo.write(false);
+					// Don't drop, pass on the BTH to the next module in line 
 					ibhDropMetaFifo.write(fwdPolicy(false, false));
 					metaOut.write(ibhMeta(meta.op_code, meta.partition_key, meta.dest_qp, meta.psn, meta.validPSN));
 					//No release required
@@ -376,11 +452,14 @@ void rx_ibh_fsm(
 				// Write requests acknowledge, see page 313
 				else if (checkIfWrite(meta.op_code))
 				{
-					//Send out ACK
+					// Packet needs to be dropped - but why write to the ibhEventFifo then?: Probably to initiate a NAK as response
 					ibhEventFifo.write(ackEvent(meta.dest_qp, meta.psn, false)); //TODO do we need PSN???
 					std::cout << std::hex << "[RX IBH FSM " << INSTID << "]: dropping duplicate psn " << meta.psn << std::endl;
+					// Increment the drop counter 
 					droppedPackets++;
 					regInvalidPsnDropCount = droppedPackets;
+
+					// Write the Drop-Event to the other queues as well 
 					ibhDropFifo.write(true);
 					//Meta is required for ACK, TODO no longer
 					ibhDropMetaFifo.write(fwdPolicy(false, true));
@@ -389,6 +468,7 @@ void rx_ibh_fsm(
 				// Drop them
 				else
 				{
+					// Also get dropped here, but counters are not incremented - why? 
 					// Case Requester: Valid ACKs -> reset timer TODO
 					// Propagate ACKs for flow control
 					if (meta.op_code != RC_ACK) //TODO do length check instead
@@ -398,10 +478,11 @@ void rx_ibh_fsm(
 					ibhDropMetaFifo.write(fwdPolicy(true, false));
 				}
 			}
-			else // completely invalid
+			else // completely invalid - nothing to recover here
 			{
 				// behavior, see page 313
 				std::cout << std::hex << "[RX IBH FSM " << INSTID << "]: dropping invalid psn " << meta.psn << " with retry " << qpState.retryCounter << std::endl;
+				// Packets need to get dropped, so increment the drop counter 
 				droppedPackets++;
 				regInvalidPsnDropCount = droppedPackets;
 				ibhDropMetaFifo.write(fwdPolicy(true, false));
@@ -411,6 +492,8 @@ void rx_ibh_fsm(
 				{
 					ibhDropFifo.write(true);
 					// Do not generate further ACK/NAKs until we received a valid pkg
+
+					// if retrycounter is set to 0x7, unlimited retries are attempted 
 					if (qpState.retryCounter == 0x7)
 					{
 						if (isResponse)
