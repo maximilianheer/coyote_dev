@@ -522,7 +522,7 @@ void rx_ibh_fsm(
 }
 
 /**
- * RX EXH fsm
+ * RX EXH fsm - State Machine for further dealing with the Extended Headers 
  * 
  * For reliable connections, page 246, 266, 269
  * SEND ONLY: PayLd
@@ -938,7 +938,7 @@ void drop_ooo_ibh(
 }
 
 /**
- * RX EXH payload
+ * RX EXH payload - basically meaningless? Just forwards the packet to the stream merger in one of three forms. 
  */
 template <int WIDTH, int INSTID = 0>
 void rx_exh_payload(
@@ -1010,7 +1010,7 @@ void rx_exh_payload(
 }
 
 /**
- * Handling of the read requests
+ * Handling of the read requests - generates memory commands for reading the requested areas from memory
  */
 template <int INSTID = 0>
 void handle_read_requests(	
@@ -1104,15 +1104,19 @@ template <int WIDTH, int INSTID = 0>
 
 // STREAM MERGE in the block diagram
 void merge_rx_pkgs(	
+	// Input queue from rx_exh_fsm, contains the shift type (RETH / AETH / None)
 	stream<pkgShift>& rx_pkgShiftTypeFifo,
+	// Inputs of the whole packet as received from rx_exh_payload
 	stream<net_axis<WIDTH> >& rx_aethSift2mergerFifo,
 	stream<net_axis<WIDTH> >& rx_rethSift2mergerFifo,
 	stream<net_axis<WIDTH> >& rx_NoSift2mergerFifo,
+	// package sent out for further processing 
 	stream<net_axis<WIDTH> >& m_axis_mem_write_data
 ) {
 #pragma HLS inline off
 #pragma HLS pipeline II=1
 
+	// Four states, three states for the three different package types 
 	enum mrpStateType{IDLE, FWD_AETH, FWD_RETH, FWD_NONE};
 	static mrpStateType state = IDLE;
 
@@ -1121,8 +1125,10 @@ void merge_rx_pkgs(
 	switch (state)
 	{
 	case IDLE:
+		// Wait until the input-info about the package type becomes available 
 		if (!rx_pkgShiftTypeFifo.empty())
 		{
+			// Read the package-type input and switch to the corresponding following state for further processing
 			rx_pkgShiftTypeFifo.read(shift);
 			if (shift.type == SHIFT_AETH)
 			{
@@ -1139,9 +1145,12 @@ void merge_rx_pkgs(
 		}
 		break;
 	case FWD_AETH:
+		// Process Acks
 		if (!rx_aethSift2mergerFifo.empty())
 		{
 			net_axis<WIDTH> currWord;
+
+			// Read incoming word and forward it to the memory - why though? It's an ACK.
 			rx_aethSift2mergerFifo.read(currWord);
 			m_axis_mem_write_data.write(currWord);
 
@@ -1152,9 +1161,11 @@ void merge_rx_pkgs(
 		}
 		break;
 	case FWD_RETH:
+		// Process RDMA messages
 		if (!rx_rethSift2mergerFifo.empty())
 		{
 			net_axis<WIDTH> currWord;
+			// Same treatment
 			rx_rethSift2mergerFifo.read(currWord);
 			m_axis_mem_write_data.write(currWord);
 			
@@ -1167,6 +1178,7 @@ void merge_rx_pkgs(
 	case FWD_NONE:
 		if (!rx_NoSift2mergerFifo.empty())
 		{
+			// Same treatment
 			net_axis<WIDTH> currWord;
 			rx_NoSift2mergerFifo.read(currWord);
 			m_axis_mem_write_data.write(currWord);
@@ -1185,18 +1197,22 @@ void merge_rx_pkgs(
 // ------------------------------------------------------------------------------------------------
 
 /**
- * Local request handler
+ * Local request handler - first module after user logic to handle RDMA-requests
  */
 template <int INSTID = 0>
 void local_req_handler(
+	// Incoming requests, holds opcode, qpn, host-bit, lst-bit, offset, parameters with local and remote buffer address
 	stream<txMeta>& s_axis_sq_meta,
 #ifdef RETRANS_EN
 	stream<retransEvent>& retransEventFifo,
 	stream<retransAddrLen>& tx2retrans_insertAddrLen,
 #endif
+	// Output queue to mem_cmd_merger, holds qpn, addr, len, host, sync and offset
 	stream<memCmdInternal>&	tx_local_memCmdFifo, //TODO rename
 	//stream<mqInsertReq<ap_uint<64> > >&	tx_localReadAddrFifo,
+	// Output to meta merger (tx_appMetaFifo), holds opcode, qpn, addr, length, psn, valid- and NAK-bit
 	stream<event>&tx_localTxMeta,
+	// Retransmitter counter, goes to generate_ibh
     ap_uint<32>& regRetransCount)
 {
 #pragma HLS inline off
@@ -1204,12 +1220,16 @@ void local_req_handler(
 
 	//enum fsmStateType {META, GENERATE};
 	//static fsmStateType lrh_state;
+
+	// Variable to save incoming meta-input
 	static txMeta meta;
 
+	// Words for generating the outputs
 	event ev;
 	retransEvent rev;
     static ap_uint<32> retransCount = 0;
 
+	// Bitfields of requests - local buffer address, remote buffer address, length of request, lst, offset
 	ap_uint<64> laddr;
 	ap_uint<64> raddr;
 	ap_uint<32> length;
@@ -1239,11 +1259,13 @@ void local_req_handler(
 	else if (!s_axis_sq_meta.empty())
 #else
 
+	// If external meta request is available, read it 
 	if (!s_axis_sq_meta.empty())
 #endif
 	{
 		s_axis_sq_meta.read(meta); // (len-32 | remote-64 | local-64)
 
+		// Dissect the local request in the suitable bitfields 
 		laddr = meta.params(63,0);
 		raddr = meta.params(127,64);
 		length = meta.params(159,128);
@@ -1252,11 +1274,14 @@ void local_req_handler(
 
 		std::cout << std::dec << "[LOCAL REQ HANDLER " << INSTID << "]: transmission: length: " << std::dec << length << ", local addr: " << std::hex << laddr << ", remote addres: " << raddr << std::endl;
 
+		// In case of a READ_REQUEST: Generate output to the meta merger
 		if(meta.op_code == RC_RDMA_READ_REQUEST)
 		{
 			tx_localTxMeta.write(event(meta.op_code, meta.qpn, raddr, length));
 			//tx_localReadAddrFifo.write(mqInsertReq<ap_uint<64> >(meta.qpn, laddr));
 		}
+
+		// In case of WRITE or SEND: Generate output to the meta merger and memory command to the mem_cmd_merger (probably to read the memory content that is to be sent to remote)
 		if(meta.op_code == RC_RDMA_WRITE_MIDDLE || meta.op_code == RC_RDMA_WRITE_FIRST ||
 			meta.op_code == RC_RDMA_WRITE_LAST || meta.op_code == RC_RDMA_WRITE_ONLY || meta.op_code == RC_SEND_ONLY ||
             meta.op_code == RC_SEND_FIRST || meta.op_code == RC_SEND_MIDDLE || meta.op_code == RC_SEND_LAST)
@@ -1271,13 +1296,17 @@ void local_req_handler(
 }
 
 /**
- * Local memory command merger
+ * Local memory command merger - Handles all read commands to the memory. Either remote read requests, or outgoing write requests that need memory content
  */
 template <int WIDTH, int INSTID = 0>
 void mem_cmd_merger(
+	// Incoming Remote Read Requests from handle read req
 	stream<memCmdInternal>& remoteReadRequests,
+	// Incoming Local Read Requests from local_req_handler
 	stream<memCmdInternal>& localReadRequests,
+	// Unified outgoing memory read commands, has information on the corresponding vFPGA etc. 
 	stream<memCmd>& out,
+	// Output to tx_pkg_arbiter, has type of package (ACK, RDMA, RAW, IMMEDIATE)
 	stream<pkgInfo>& pkgInfoFifo
 ) {
 #pragma HLS inline off
@@ -1285,11 +1314,13 @@ void mem_cmd_merger(
 
 	memCmdInternal cmd;
 
+	// Deal with remote read requests and load them into the local variable 
 	if (!remoteReadRequests.empty())
 	{
         std::cout << "[MEM CMD MERGER " << INSTID << "]: reading remote request" << std::endl;
 		remoteReadRequests.read(cmd);
 
+		// Three types of READs (Only / Last, Middle, First) - generate memory commands accordingly and send out ACKs
 		if(cmd.op_code == RC_RDMA_READ_RESP_ONLY || cmd.op_code == RC_RDMA_READ_RESP_LAST) 
 		{
 			out.write(memCmd(cmd.addr, cmd.len, PKG_F, cmd.host, cmd.qpn));
@@ -1306,6 +1337,8 @@ void mem_cmd_merger(
 			pkgInfoFifo.write(pkgInfo(AETH, ((cmd.len+(WIDTH/8)-1)/(WIDTH/8))));
 		}
 	}
+
+	// Deal with local memory requests for SEND / WRITE
 	else if (!localReadRequests.empty())
 	{
 		localReadRequests.read(cmd);
@@ -1313,6 +1346,8 @@ void mem_cmd_merger(
 		std::cout << "[MEM CMD MERGER " << INSTID << "]: reading local request, opcode - " << std::hex << cmd.op_code 
             << ", sync - " << cmd.sync << ", offs - " << cmd.offs << ", vaddr - " << cmd.addr << ", len - " << cmd.len << std::endl;
 
+		// Generate memory commands and packet type depending on the processed opcode 
+		// To be cleared: What is the SYNC-option for?
 		if(cmd.op_code == RC_RDMA_WRITE_ONLY)
 		{
 			if(cmd.sync)
@@ -1363,30 +1398,40 @@ void mem_cmd_merger(
  */
 template <int WIDTH, int INSTID = 0>
 void tx_pkg_arbiter(
+	// Meta-Information coming from mem_cmd merger 
 	stream<pkgInfo>& tx_pkgInfoFifo,
+	// Input from the memory, has the read data
 	stream<net_axis<WIDTH> >& s_axis_mem_read_data,
+	// Output tx_split2aethShift to append_payload - data as read from the memory, used for acking remote read requests
 	stream<net_axis<WIDTH> >& remoteReadData,
+	// Output tx_rethMerge2rethShift to append_payload - data as read from the memory, used for appending to WRITE or SEND 
 	stream<net_axis<WIDTH> >& localReadData,
+	// Output as read from memory to append_payload - used for packages of third type
 	stream<net_axis<WIDTH> >& rawPayFifo
 ) {
 #pragma HLS inline off
 #pragma HLS pipeline II=1
 
+	// FSM with four states for forwarding the different payloads for the different packet types 
 	enum mrpStateType{IDLE, FWD_AETH, FWD_RETH, FWD_RAW};
 	static mrpStateType state = IDLE;
+	// Variable with a word counter 
 	static ap_uint<8> wordCounter = 0;
 
+	// Variables for loading meta information and the current word from memory
 	static pkgInfo info;
 	net_axis<WIDTH> currWord;
 
 	switch (state)
 	{
+	// Wait until meta-input arrives at the queue, load it and make further processing decision based on the type of packet
 	case IDLE:
 		if (!tx_pkgInfoFifo.empty())
 		{
 			tx_pkgInfoFifo.read(info);
 			wordCounter = 0;
 
+			// Depending on the loaded header type, move to the correct state for further processing of the packet 
 			if (info.type == AETH)
 			{
 				state = FWD_AETH;
@@ -1402,6 +1447,7 @@ void tx_pkg_arbiter(
 		}
 		break;
 	case FWD_AETH:
+		// Read memory input when available, increment the word counter, check for last word and pass on the memory word
 		if (!s_axis_mem_read_data.empty())
 		{
 			s_axis_mem_read_data.read(currWord);
@@ -1420,6 +1466,7 @@ void tx_pkg_arbiter(
 		}
 		break;
 	case FWD_RETH:
+		// Same as before, but pass on through its own queue 
 		if (!s_axis_mem_read_data.empty())
 		{
 			s_axis_mem_read_data.read(currWord);
@@ -1438,6 +1485,7 @@ void tx_pkg_arbiter(
 		}
 		break;
 	case FWD_RAW:
+		// Same as before, but pass on through its own queue 
 		if (!s_axis_mem_read_data.empty())
 		{
 			s_axis_mem_read_data.read(currWord);
@@ -1460,7 +1508,8 @@ void tx_pkg_arbiter(
 }
 
 /**
- * TX meta merger
+ * TX meta merger - three sources of inputs for generating some kind of output: Response 
+ * to a remote read request, ACKing another remote message, writing out a local RDMA-packet
  * 
  * rx_ackEventFifo RC_ACK from ibh and exh
  * rx_readEvenFifo READ events from RX side
@@ -1468,12 +1517,18 @@ void tx_pkg_arbiter(
  */
 template <int INSTID = 0>
 void meta_merger(	
+	// Input from the stream merger, carries QPN, PSN, validPSN and NAK-bit to generate an ACK
 	stream<ackEvent>&	rx_ackEventFifo,
+	// Input from handle read request, carries opcode, QPN, ADDR, length, PSN, validPSN, NAK-bit to respond to a read request
 	stream<event>&		rx_readEvenFifo,
+	// Input from the local_req_handler to generate responses to read requests 
 	stream<event>&		tx_appMetaFifo,
 	//stream<event>&		timer2exhFifo,
+	// Number queue
 	stream<ap_uint<16> >&	tx_connTable_req,
+	// Output of pre-set BTH, goes to generate_ibh
 	stream<ibhMeta>&	tx_ibhMetaFifo,
+	// Output of pre-set Extended Header, goes to generate_exh
 	stream<event>&		tx_exhMetaFifo
 ) {
 #pragma HLS inline off
@@ -1483,6 +1538,9 @@ void meta_merger(
 	event ev;
 	ap_uint<16> key = 0; //TODO hack
 
+	// Check the three sources of incoming meta information for generating an outgoing message
+
+	// Acking a remote message 
 	if (!rx_ackEventFifo.empty())
 	{
 		rx_ackEventFifo.read(aev);
@@ -1493,6 +1551,8 @@ void meta_merger(
 		tx_exhMetaFifo.write(event(aev));
 		std::cout << "[META MERGER " << INSTID << "]: reading from ack event with qpn " << aev.qpn << ", psn " << aev.psn << std::endl;
 	}
+
+	// Answering a remote read request
 	else if (!rx_readEvenFifo.empty())
 	{
 		rx_readEvenFifo.read(ev);
@@ -1502,6 +1562,8 @@ void meta_merger(
 		tx_exhMetaFifo.write(ev);
 		std::cout << "[META MERGER " << INSTID << "]: reading from read event with qpn " << ev.qpn << ", psn " << ev.psn << std::endl;
 	}
+
+	// Generating Meta for a local RDMA application 
 	else if (!tx_appMetaFifo.empty()) //TODO rename
 	{
 		tx_appMetaFifo.read(ev);
@@ -1542,30 +1604,45 @@ void meta_merger(
  */
 template <int WIDTH, int INSTID = 0>
 void generate_ibh(	
+	// Pre-filled BTH coming from the meta merger
 	stream<ibhMeta>& metaIn,
+	// Destination QP number coming from the connection table 
 	stream<ap_uint<24> >& dstQpIn,
+	// Input from the state table - comes with all kind of information on PSN
 	stream<stateTableEntry>& stateTable2txIbh_rsp,
+	// State input to the state table - comes with qpn, psn, write-bit
 	stream<txStateReq>&	txIbh2stateTable_upd_req,
 #ifdef RETRANS_EN
 	stream<retransMeta>& tx2retrans_insertMeta,
 #endif
+	// Output-Fifo with the generated BTH, goes to prepend_ibh
 	stream<BaseTransportHeader<WIDTH> >& tx_ibhHeaderFifo
 ) {
 #pragma HLS inline off
 #pragma HLS pipeline II=1
 
+	// Two-state FSM for generating the IBH - start off in META-state
 	enum fsmStateType {META, GET_PSN};
 	static fsmStateType gi_state = META;
+
+	// Variable to generate the final BTH
 	static BaseTransportHeader<WIDTH> header;
 
+	// Storage Variable to read the incoming BTH-meta information 
 	static ibhMeta meta;
+
 	net_axis<WIDTH> currWord;
+
+	// Entry to the Qeuepair Table
 	stateTableEntry qpState; //TODO what is really required
+
+	// Variable to read the destination QP
 	ap_uint<24> dstQp;
 
 	switch(gi_state)
 	{
 	case META:
+		// If BTH and destination QP is available, fetch from the input queues and store
 		if (!metaIn.empty() && !dstQpIn.empty())
 		{
 			metaIn.read(meta);
@@ -1573,38 +1650,47 @@ void generate_ibh(
 			meta.partition_key = 0xFFFF; //TODO this is hard-coded, where does it come from??
 			header.clear();
 
+			// Set header-opcode and partition key
 			header.setOpCode(meta.op_code);
 			header.setPartitionKey(meta.partition_key);
 
-			// Set MigReq-Bit to 0
+			// Set MigReq-Bit to 1
 			header.setMigReq(true);
 
 			//PSN only valid for READ_RSP, otherwise we get it in state GET_PSN
 			header.setPsn(meta.psn);
+
+			// Set destination QP in the header
 			header.setDstQP(dstQp); //TODO ist meta.dest_qp required??
 			if (meta.validPSN)
 			{
+				// If PSN is already valid, send out the packet to pretend_ibh
 				tx_ibhHeaderFifo.write(header);
 				std::cout << "[GENERATE IBH " << INSTID << "]: input meta, opcode 0x" << meta.op_code  << " valid psn " << std::hex << meta.psn << std::endl;
 			}
 			else
 			{
+				// Otherwise, start a request to the state table to get the PSN
 				txIbh2stateTable_upd_req.write(txStateReq(meta.dest_qp)); //TODO this is actually our qp
 				gi_state = GET_PSN;
 			}
 		}
 		break;
 	case GET_PSN:
+		// Wait for the response from the state table 
 		if (!stateTable2txIbh_rsp.empty())
 		{
 			stateTable2txIbh_rsp.read(qpState);
+
 			if (meta.op_code == RC_ACK)
 			{
+				// If it's an ACK, set the PSN
 				header.setPsn(qpState.resp_epsn-1); //TODO -1 necessary??
 				std::cout << "[GENERATE IBH " << INSTID << "]: RC_ACK psn " << std::hex << qpState.resp_epsn-1 << std::endl;
 			}
 			else
 			{
+				// Else: Set the PSN, request an ACK and update the PSN in the state table. 
 				header.setPsn(qpState.req_next_psn);
 				header.setAckReq(true);
 				//Update PSN

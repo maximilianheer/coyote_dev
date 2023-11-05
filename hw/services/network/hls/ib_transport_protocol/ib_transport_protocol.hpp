@@ -232,6 +232,7 @@ struct txPacketInfo
 	bool hasPayload;
 };
 
+// Probably rkey should be installed as part of the params in this structure - this comes from externally and carries all other relevant information 
 struct txMeta
 {
 	ibOpCode 	 op_code; // 32
