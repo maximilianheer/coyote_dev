@@ -637,6 +637,19 @@ public:
 	{
 		return reverse((ap_uint<16>)header(31,16));
 	}
+
+	// New function to set the flag bits 
+	void setFlags(const ap_uint<3>& flag)
+	{
+		header(50, 48) = flag; 
+	}
+
+	// New function to set ECN
+	void setECN(const ap_uint<2>& ECN)
+	{
+		header(15, 14) = ECN;
+	}
+	
 	void setProtocol(const ap_uint<8>& protocol)
 	{
 		header(79, 72) = protocol;
