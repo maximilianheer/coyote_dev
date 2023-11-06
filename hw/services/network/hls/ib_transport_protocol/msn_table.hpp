@@ -138,8 +138,8 @@ void msn_table(hls::stream<rxMsnReq>&		rxExh2msnTable_upd_req,
 		msn_table[ifRequest.qpn].msn = 0;
 		msn_table[ifRequest.qpn].vaddr = 0; //TODO requried?
 		msn_table[ifRequest.qpn].dma_length = 0;  //TODO requried?
-		// msn_table[ifRequest.qpn].r_key = ifRequest.r_key;
-		msn_table[ifRequest.qpn].r_key = 5; 
+		msn_table[ifRequest.qpn].r_key = ifRequest.r_key;
+		// msn_table[ifRequest.qpn].r_key = 5; 
         msn_table[ifRequest.qpn].lst = 0;
 	}
 }

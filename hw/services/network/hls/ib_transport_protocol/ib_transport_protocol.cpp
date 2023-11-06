@@ -1734,33 +1734,52 @@ void generate_exh(
 	stream<event>& metaIn,
 	// Input from the MSN-Table: Has the Message Serial Number and r_key
 	stream<txMsnRsp>& msnTable2txExh_rsp,
+	// QPN sent out to the MSN-Table to query it for r_key and related information 
 	stream<ap_uint<16> >& txExh2msnTable_req,
 	//stream<txReadReqUpdate>& tx_readReqTable_upd,
+	// Length of the packet, sent out to the tx_ipUdpmetaMerger
 	stream<ap_uint<16> >& lengthFifo,
+	// Forwarded to append_payload to inform about the type of packet that
 	stream<txPacketInfo>& packetInfoFifo,
 #ifdef RETRANS_EN
 	stream<ap_uint<24> >&	txSetTimer_req,
 	//stream<retransAddrLen>&		tx2retrans_insertAddrLen,
 #endif
+	// Output of the completely assembled Extended Header
 	stream<net_axis<WIDTH> >& output
 ) {
 #pragma HLS inline off
 #pragma HLS pipeline II=1
-
+	// Three-state FSM 
 	enum ge_fsmStateType {META, GET_MSN, PROCESS};
 	static ge_fsmStateType ge_state = META;
+
+	// Variable to load meta-input into 
 	static event meta;
+
+	// Variable to send out the generated Extended Header with 
 	net_axis<WIDTH> sendWord;
+
+	// Two options for rdmaHeaders and ackHeaders
 	static RdmaExHeader<WIDTH> rdmaHeader;
 	static AckExHeader<WIDTH>  ackHeader;
+
+	// Boolean to acknowledge that meta-information was written 
 	static bool metaWritten;
+
+	// Variable to store incoming meta-information from the msn-table
 	static txMsnRsp msnMeta;
+
+	// Output to the udp-merger with the required length of the packet 
 	ap_uint<16> udpLen;
+
+	// Type of the packet
 	txPacketInfo info;
 
 	switch(ge_state)
 	{
 	case META:
+		// Read the meta-information from the meta-merger 
 		if (!metaIn.empty())
 		{
 			rdmaHeader.clear();
@@ -1770,6 +1789,7 @@ void generate_exh(
 			metaWritten = false;
 			//if (meta.op_code == RC_RDMA_READ_RESP_ONLY || meta.op_code == RC_RDMA_READ_RESP_FIRST || meta.op_code == RC_RDMA_READ_RESP_MIDDLE || meta.op_code == RC_RDMA_READ_RESP_LAST || meta.op_code == RC_ACK)
 			{
+				// Start request to the msn-table with the QPN as received from the meta-input
 				txExh2msnTable_req.write(meta.qpn);
 				ge_state = GET_MSN;
 			}
@@ -1790,6 +1810,7 @@ void generate_exh(
 		}
 		break;
 	case GET_MSN:
+		// Wait for the input from the msn-table and store it in a variable for further processing
 		if (!msnTable2txExh_rsp.empty())
 		{
 			msnTable2txExh_rsp.read(msnMeta);
@@ -1801,10 +1822,13 @@ void generate_exh(
 			sendWord.last = 0;
 			switch(meta.op_code)
 			{
+
+			// WRITE_ONLY / FIRST: Extended Header and meta-information to append
 			case RC_RDMA_WRITE_ONLY:
 			case RC_RDMA_WRITE_FIRST:
 			{
 				// [BTH][RETH][PayLd]
+				// Construct the RDMA Extended Header with the vaddr, the length of the packet and the remote key as read from the msn-table
 				rdmaHeader.setVirtualAddress(meta.addr);
 				rdmaHeader.setLength(meta.length); //TODO Move up??
 				rdmaHeader.setRemoteKey(msnMeta.r_key);
@@ -1821,6 +1845,8 @@ void generate_exh(
 				{
 					//TODO
 				}
+
+				// Send out the meta-information to append_payload
 				if (!metaWritten) //TODO we are losing 1 cycle here
 				{
 					info.isAETH = false;
@@ -1834,6 +1860,7 @@ void generate_exh(
 					{
 						payloadLen = PMTU;
 					}
+					// Seems as if the 2 trailing padding bytes don't occur here, but somewhere later in the chain
 					udpLen = 12+16+payloadLen+4; //TODO dma_len can be much larger, for multiple packets we need to split this into multiple packets
 					lengthFifo.write(udpLen);
 					//Store meta for retransmit
@@ -1841,6 +1868,8 @@ void generate_exh(
 				}
 				break;
 			}
+
+			// WRITE_MIDDLE / LAST / SEND: No Extended Header, only meta-information to append_payload
 			case RC_RDMA_WRITE_MIDDLE:
 			case RC_RDMA_WRITE_LAST:
 			case RC_SEND_ONLY:
@@ -1967,6 +1996,7 @@ void generate_exh(
 #endif
 					output.write(sendWord);
 					//BTH: 12, AETH: 4, ICRC: 4
+					// Length is correct, the two trailing bytes must be from somewhere else
 					lengthFifo.write(12+4+4);
 				}
 				break;
@@ -1988,11 +2018,17 @@ void generate_exh(
  */
 template <int WIDTH, int INSTID = 0>
 void append_payload(
+	// Packet Information coming from generate_exh
 	stream<txPacketInfo>&	packetInfoFifo,
+	// Extended Header coming from generate_exh
 	stream<net_axis<WIDTH> >&	tx_headerFifo,
+	// Ack Extended Header coming from generate_exh
 	stream<net_axis<WIDTH> >&	tx_aethPayloadFifo,
+	// RDMA Extended Header coming from generate_exh
 	stream<net_axis<WIDTH> >&	tx_rethPayloadFifo,
+	// Raw Extended Header coming from generate_exh
 	stream<net_axis<WIDTH> >&	tx_rawPayloadFifo,
+	// Final output for the payload with appended Extended Header
 	stream<net_axis<WIDTH> >&	tx_packetFifo
 ) {
 #pragma HLS inline off
@@ -2011,6 +2047,7 @@ void append_payload(
 	switch (state)
 	{
 	case INFO:
+		// Read the packet info and check if there is a header at all for this packet 
 		if (!packetInfoFifo.empty())
 		{
 			firstPayload = true;
@@ -2029,10 +2066,13 @@ void append_payload(
 		}
 		break;
 	case HEADER:
+		// If header is part of this packet, load it from the incoming queue 
 		if (!tx_headerFifo.empty())
 		{
 			tx_headerFifo.read(prevWord);
 			//TODO last is not necessary
+
+			// Last does not have payload - just sent out the header
 			if (!prevWord.last)
 			{
 				std::cout << "[APPEND PAYLOAD " << INSTID << "]: writing header" << std::endl;
@@ -2048,6 +2088,7 @@ void append_payload(
 				}
 				else // hasPayload
 				{
+					// Switch to states to append either ACK- or RDMA-payload
 					prevWord.last = 0;
 					if (info.isAETH)
 					{
@@ -2067,6 +2108,8 @@ void append_payload(
 			}
 		}
 		break;
+
+	// Both of these cases: Read the data and combine it with the header for sending out
 	case AETH_PAYLOAD:
 		if (!tx_aethPayloadFifo.empty())
 		{
@@ -2138,14 +2181,18 @@ void append_payload(
 }
 
 /**
- * Prepend the header
+ * Prepend the header - add the BTH to the combination of Extended Header and Payload
  */
 //TODO this introduces 1 cycle for WIDTH > 64
 template <int WIDTH, int INSTID = 0>
 void prepend_ibh_header(
+	// Incoming BTH from generate_ibh
 	stream<BaseTransportHeader<WIDTH> >& tx_ibhHeaderFifo,
+	// Payload with Extended Header, coming from append_payload
 	stream<net_axis<WIDTH> >& tx_ibhPayloadFifo,
+	// Output for the combination of BTH, Extended Header and Payload
 	stream<net_axis<WIDTH> >& m_axis_tx_data,
+	// Counter for the outgoing packets 
     ap_uint<32>&		regIbvCountTx
 ) {
 #pragma HLS inline off
@@ -2160,10 +2207,12 @@ void prepend_ibh_header(
 
 	switch (state)
 	{
+	// Fetch the incoming BTH 
 	case GET_HEADER:
 		if (!tx_ibhHeaderFifo.empty())
 		{
 			tx_ibhHeaderFifo.read(header);
+			// Check if it's a full BTH or not 
 			if (BTH_SIZE >= WIDTH)
 			{
 				state = HEADER;
@@ -2253,12 +2302,17 @@ void prepend_ibh_header(
 //TODO this should become a BRAM, storage type of thing
 template <int WIDTH, int INSTID = 0>
 void ipUdpMetaHandler(	
+	// Input from IP / UDP meta information 
 	stream<ipUdpMeta>&		input,
+	// Input of the Extended Header 
 	stream<ExHeader<WIDTH> >& exHeaderInput,
+	// Input of the forwarding policy in processed packet
 	stream<fwdPolicy>&			dropMetaIn,
 	//stream<dstTuple>&		output,
 	//stream<ap_uint<16> >&	remcrc_lengthFifo,
+	// Length of the Extended Header 
 	stream<ap_uint<16> >&	exh_lengthFifo,
+	// Output of the Extended Header 
 	stream<ExHeader<WIDTH> >& exHeaderOutput
 ) {
 #pragma HLS inline off
@@ -2274,6 +2328,8 @@ void ipUdpMetaHandler(
 		input.read(meta);
 		exHeaderInput.read(header);
 		dropMetaIn.read(policy);
+
+		// Only output the header and length if the packet is not to be dropped and not an ACK
 		if (!policy.isDrop) //TODO clean this up
 		{
 			if (!policy.ackOnly)
@@ -2289,12 +2345,15 @@ void ipUdpMetaHandler(
 }
 
 /**
- * UDP meta merger TX
+ * UDP meta merger TX - fetches IP Address, RDMA default port, UDP port from the connection table and writes it out as m_axis_tx_meta
  */
 template <int INSTID = 0>
 void tx_ipUdpMetaMerger(	
+	// Input from the connection Table 
 	stream<connTableEntry>& tx_connTable2ibh_rsp,
+	// Input of the length of the RDMA
 	stream<ap_uint<16> >&	tx_lengthFifo,
+	// IP / UDP Meta Information Output 
 	stream<ipUdpMeta>&		m_axis_tx_meta,
 	stream<ap_uint<24> >&	tx_dstQpFifo
 ) {
@@ -2306,6 +2365,7 @@ void tx_ipUdpMetaMerger(
 
 	if (!tx_connTable2ibh_rsp.empty() && !tx_lengthFifo.empty())
 	{
+		// Read from the connection table and fetch required IP / UDP information to generate the IP / UDP header later on
 		tx_connTable2ibh_rsp.read(connMeta);
 		tx_lengthFifo.read(len);
 		std::cout << "[TX IP UDP META MERGER " << INSTID << "]: port " << connMeta.remote_udp_port << std::endl;
@@ -2323,9 +2383,14 @@ void tx_ipUdpMetaMerger(
  */
 template <int INSTID = 0>
 void qp_interface(	
+	// QP context input: QP State, QPN, RPSN, LPSN, RKEY, VADDR
 	stream<qpContext>& 			contextIn,
+
+	// Input from the State Table: Info on PSNs etc. 
 	stream<stateTableEntry>&	stateTable2qpi_rsp,
+	// Initial access to the State Table: QPN, new state, RPSN, LPSN, Write-Bit
 	stream<ifStateReq>&			qpi2stateTable_upd_req,
+	// Initial access to the MSN Table: QPN and rkey
 	stream<ifMsnReq>&			if2msnTable_init
 ) {
 #pragma HLS inline off
@@ -2339,19 +2404,24 @@ void qp_interface(
 	switch(qp_fsmState)
 	{
 	case GET_STATE:
+		// Wait for the incoming context 
 		if (!contextIn.empty())
 		{
 			contextIn.read(context);
+			// Update the state table with the QPN
 			qpi2stateTable_upd_req.write(context.qp_num);
 			qp_fsmState = UPD_STATE;
 		}
 		break;
 	case UPD_STATE:
+		// Check the current state of the QP and then update it 
 		if (!stateTable2qpi_rsp.empty())
 		{
 			stateTable2qpi_rsp.read(state);
 			//TODO check if valid transition
+			// Update the state table with QPN, new state, remote PSN, local PSN
 			qpi2stateTable_upd_req.write(ifStateReq(context.qp_num, context.newState, context.remote_psn, context.local_psn));
+			// Update the msn table with the QPN and the rkey
 			if2msnTable_init.write(ifMsnReq(context.qp_num, context.r_key)); //TODO store virtual address somewhere??
 			qp_fsmState = GET_STATE;
 		}
