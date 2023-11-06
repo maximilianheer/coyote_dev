@@ -1729,8 +1729,10 @@ void generate_ibh(
  * ACK: AETH
  */
 template <int WIDTH, int INSTID = 0>
-void generate_exh(	
+void generate_exh(
+	// Meta-Information coming from the meta_merger, including the opcode, QPN, buffer address, requested length, PSN and valid- and NAK-bits.
 	stream<event>& metaIn,
+	// Input from the MSN-Table: Has the Message Serial Number and r_key
 	stream<txMsnRsp>& msnTable2txExh_rsp,
 	stream<ap_uint<16> >& txExh2msnTable_req,
 	//stream<txReadReqUpdate>& tx_readReqTable_upd,
