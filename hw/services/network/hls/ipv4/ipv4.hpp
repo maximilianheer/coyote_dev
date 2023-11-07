@@ -641,13 +641,13 @@ public:
 	// New function to set the flag bits 
 	void setFlags(const ap_uint<1> flag)
 	{
-		header(54) = flag; 
+		header[54] = flag; 
 	}
 
 	// New function to set ECN
 	void setECN(const ap_uint<1> ECN)
 	{
-		header(10) = ECN;
+		header[10] = ECN;
 	}
 	
 	void setProtocol(const ap_uint<8>& protocol)
