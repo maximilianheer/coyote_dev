@@ -639,15 +639,15 @@ public:
 	}
 
 	// New function to set the flag bits 
-	void setFlags(const ap_uint<3>& flag)
+	void setFlags(bool flag)
 	{
-		header(50, 48) = flag; 
+		header(54) = flag; 
 	}
 
 	// New function to set ECN
-	void setECN(const ap_uint<2>& ECN)
+	void setECN(bool ECN)
 	{
-		header(15, 14) = ECN;
+		header(10) = ECN;
 	}
 	
 	void setProtocol(const ap_uint<8>& protocol)
