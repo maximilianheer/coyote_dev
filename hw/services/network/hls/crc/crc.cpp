@@ -640,9 +640,7 @@ void crc(
 	/*
 	 * TX
 	 */
-
-	// Only enable CRC calculation on the TX-path: We still don't care for incoming ICRC values, but outgoing would be nice to have!
-#ifdef DISABLE_CRC_CHECK
+#ifndef DISABLE_CRC_CHECK
 	static stream<net_axis<WIDTH> > tx_maskedDataFifo("tx_maskedDataFifo");
 	static stream<net_axis<WIDTH> > tx_maskedDataFifo1("tx_maskedDataFifo1");
 	static stream<net_axis<WIDTH> > tx_maskedDataFifo2("tx_maskedDataFifo2");
@@ -659,7 +657,7 @@ void crc(
 	#pragma HLS STREAM depth=2 variable=crcFifo2
 #endif
 
-#ifndef DISABLE_CRC_CHECK
+#ifdef DISABLE_CRC_CHECK
 	insert_icrc<WIDTH, INSTID>(s_axis_tx_data, m_axis_tx_data);
 #else
 	mask_header_fields<WIDTH, INSTID>(s_axis_tx_data, tx_crcDataFifo, tx_maskedDataFifo);
