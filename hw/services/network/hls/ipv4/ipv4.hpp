@@ -647,7 +647,7 @@ public:
 	// New function to set ECN
 	void setECN(const ap_uint<1> ECN)
 	{
-		header[10] = ECN;
+		header[9] = ECN;
 	}
 	
 	void setProtocol(const ap_uint<8>& protocol)
