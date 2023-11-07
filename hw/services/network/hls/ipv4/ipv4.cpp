@@ -192,8 +192,8 @@ void ipv4_generate_ipv4( stream<ipv4Meta>&		txEng_ipMetaDataFifoIn,
 			header.setProtocol(protocol);
 
 			// Set ECN and flags accordingly 
-			header.setECN(true);
-			header.setFlags(true);
+			header.setECN(1);
+			header.setFlags(1);
 
 			if (IPV4_HEADER_SIZE >= WIDTH)
 			{
