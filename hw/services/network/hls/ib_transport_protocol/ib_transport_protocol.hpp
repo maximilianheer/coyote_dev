@@ -118,7 +118,7 @@ struct qpContext
 	ap_uint<24> remote_psn;
 	ap_uint<24> local_psn;
 	// Needs to be 32 Bit according to specification - changed that 
-	ap_uint<16> r_key;
+	ap_uint<32> r_key;
 	ap_uint<64> virtual_address;
 	qpContext() {}
 	qpContext(qpState newState, ap_uint<24> qp_num, ap_uint<24> remote_psn, ap_uint<24> local_psn, ap_uint<16> r_key, ap_uint<64> virtual_address)
