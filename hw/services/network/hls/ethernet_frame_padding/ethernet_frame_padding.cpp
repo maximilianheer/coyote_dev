@@ -42,15 +42,15 @@ void ethernet_frame_padding(hls::stream<net_axis<64> >&			dataIn,
 	net_axis<64> sendWord;
 
 	// Experimental: No Padding at all. Just read the word and pass it on as received 
-	if(!data.empty()) {
+	/*if(!data.empty()) {
 		dataIn.read(currWord);
 		sendWord.data = currWord.data;
 		sendWord.keep = currWord.keep;
 		sendWord.last = currWord.last; 
 		dataOut.write(sendWord);
-	}
+	}*/ 
 
-	/* switch(state)
+	switch(state)
 	{
 	case 0:
 		if (!dataIn.empty())
@@ -95,5 +95,5 @@ void ethernet_frame_padding(hls::stream<net_axis<64> >&			dataIn,
 		}
 		dataOut.write(sendWord);
 		break;
-	} //switch */
+	} //switch
 }

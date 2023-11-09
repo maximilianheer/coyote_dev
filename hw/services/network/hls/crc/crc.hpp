@@ -35,7 +35,7 @@ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 using namespace hls;
 
-// #define DISABLE_CRC_CHECK
+#define DISABLE_CRC_CHECK
 
 template <int WIDTH, int INSTID>
 void crc(	

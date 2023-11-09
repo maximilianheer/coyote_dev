@@ -194,6 +194,7 @@ int main(int argc, char *argv[])
                 
                 // Initiate and wait for completion
                 for(int i = 0; i < n_reps_lat; i++) {
+                    hMem[0] = hMem[0] + 1;
                     iqp->ibvPostSend(&wr);
                     while(iqp->ibvDone() < (i+1) + ((n_runs-1) * n_reps_lat)) { if( stalled.load() ) throw std::runtime_error("Stalled, SIGINT caught");  }
                 }
@@ -212,6 +213,7 @@ int main(int argc, char *argv[])
                     
                     // Wait for incoming transactions
                     while(iqp->ibvDone() < n_reps_thr * n_runs) { if( stalled.load() ) throw std::runtime_error("Stalled, SIGINT caught");  }
+                    hMem[0] = hMem[0] + 1; 
 
                     // Send back
                     for(int i = 0; i < n_reps_thr; i++) {
@@ -227,10 +229,12 @@ int main(int argc, char *argv[])
 
 #ifdef EN_LAT_TESTS
                 for(int n_runs = 1; n_runs <= n_bench_runs; n_runs++) {
+                
                     
                     // Wait for the incoming transaction and send back
                     for(int i = 0; i < n_reps_lat; i++) {
                         while(iqp->ibvDone() < (i+1) + ((n_runs-1) * n_reps_lat)) { if( stalled.load() ) throw std::runtime_error("Stalled, SIGINT caught");  }
+                        hMem[0] = hMem[0] + 1;
                         iqp->ibvPostSend(&wr);
                     }
                 } 
