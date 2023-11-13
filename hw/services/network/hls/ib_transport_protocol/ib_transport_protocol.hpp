@@ -111,6 +111,7 @@ bool checkIfAethHeader(ibOpCode code);
 bool checkIfRethHeader(ibOpCode code);
 
 /* QP context */
+// Was 3 + 3*24 + 16 + 64 = 155 Bit, is now 171 bit (with full 32-bit rkey)
 struct qpContext
 {
 	qpState		newState;
