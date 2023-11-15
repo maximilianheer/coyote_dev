@@ -2212,7 +2212,7 @@ void prepend_ibh_header(
 		if (!tx_ibhHeaderFifo.empty())
 		{
 			tx_ibhHeaderFifo.read(header);
-			// Check if it's a full BTH or not 
+			// Check if it's a full BTH or not - switch to the next state depending on that
 			if (BTH_SIZE >= WIDTH)
 			{
 				state = HEADER;
@@ -2225,8 +2225,11 @@ void prepend_ibh_header(
 			}
 		}
 		break;
+
+	// Case for a full header 
 	case HEADER:
 	{
+		// How much longer than a standard BTH? 
 		ap_uint<8> remainingLength = header.consumeWord(currWord.data);
 		if (remainingLength < (WIDTH/8))
 		{
@@ -2234,14 +2237,19 @@ void prepend_ibh_header(
 		}
 		currWord.keep = ~0;
 		currWord.last = 0;
+		// Send out the read word 
 		m_axis_tx_data.write(currWord);
 
+		// Increase the counters for having processed a header
         validTx++;
 		regIbvCountTx = validTx;
 		break;
 	}
 		break;
+
+	// Processing a partial header 
 	case PARTIAL_HEADER:
+		// Load the incoming payload from the FIFO
 		if (!tx_ibhPayloadFifo.empty())
 		{
 			tx_ibhPayloadFifo.read(currWord);
@@ -2249,10 +2257,12 @@ void prepend_ibh_header(
 			std::cout << "[PREPEND IBH HEADER " << INSTID << "]: IBH PARTIAL PAYLOAD" << std::endl;
 			print(std::cout, currWord);
 			std::cout << std::endl;
-#endif
+#endif		
+			// Write out the received data
 			header.consumeWord(currWord.data);
 			m_axis_tx_data.write(currWord);
 
+			// Increment relevant counters 
             validTx++;
 		    regIbvCountTx = validTx;
 
@@ -2261,6 +2271,7 @@ void prepend_ibh_header(
 			print(std::cout, currWord);
 			std::cout << std::endl;
 #endif
+			// Check whether more payload is to be expected or if this was already the last part 
 			state = BODY;
 			if (currWord.last)
 			{
@@ -2268,9 +2279,12 @@ void prepend_ibh_header(
 			}
 		}
 		break;
+
+	// More payload needs to be processed 
 	case BODY:
 		if (!tx_ibhPayloadFifo.empty())
 		{
+			// Read payload from the input FIFO, write it out 
 			tx_ibhPayloadFifo.read(currWord);
 			m_axis_tx_data.write(currWord);
 
@@ -2432,6 +2446,8 @@ void qp_interface(
 // ------------------------------------------------------------------------------------------------
 // Merging
 // ------------------------------------------------------------------------------------------------
+
+// Receives input from three sources, outputs them to a single output queue 
 void three_merger(
 	stream<event>& in0, stream<event>& in1, stream<event>& in2, stream<event>& out
 ) {
