@@ -783,7 +783,23 @@ void cProcess::writeQpContext(ibvQp *qp) {
         uint64_t offs[4]; 
 		offs[0] = fcnfg.qsfp;
 
-		offs[1] = (static_cast<uint64_t>(qp->local.qpn) & 0x3ff) << qpContextQpnOffs;
+
+		/* offs[1] = (static_cast<uint64_t>(qp->local.qpn) & 0x3ff) << qpContextQpnOffs;
+
+		offs[2] = ((static_cast<uint64_t>(qp->local.psn) & 0xffffff) << qpContextLpsnOffs) | 
+				  ((static_cast<uint64_t>(qp->remote.psn) & 0xffffff) << qpContextRpsnOffs);
+
+		offs[3] = ((static_cast<uint64_t>((uint64_t)qp->remote.vaddr) & 0xffffffffffff) << qpContextVaddrOffs) | 
+				  ((static_cast<uint64_t>(qp->remote.rkey) & 0xffff) << qpContextRkeyOffs); */
+
+
+		// New register layout:
+		// - offs[1] = local.qpn & remote.rkey
+		// - offs[2] = local.psn & remote.psn
+		// - offs[3] = remote.vaddr
+
+		offs[1] = ((static_cast<uint64_t>(qp->local.qpn) & 0x3ff) << qpContextQpnOffs) |
+				  ((static_cast<uint64_t>(qp->remote.rkey) & 0xffffffff));
 
 		offs[2] = ((static_cast<uint64_t>(qp->local.psn) & 0xffffff) << qpContextLpsnOffs) | 
 				  ((static_cast<uint64_t>(qp->remote.psn) & 0xffffff) << qpContextRpsnOffs);
