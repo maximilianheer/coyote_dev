@@ -774,7 +774,7 @@ void cProcess::doArpLookup(uint32_t ip_addr) {
 }
 
 /**
- * @brief Write queue pair context
+ * @brief Write queue pair context (including Local QPN, rkey, Local / Remote PSN, Virtual Address)
  * 
  * @param qp - queue pair struct
  */
@@ -796,7 +796,7 @@ void cProcess::writeQpContext(ibvQp *qp) {
 		// New register layout:
 		// - offs[1] = local.qpn & remote.rkey
 		// - offs[2] = local.psn & remote.psn
-		// - offs[3] = remote.vaddr
+		// - offs[3] = remote.vaddr (rkey stays there for historical reasons)
 
 		offs[1] = ((static_cast<uint64_t>(qp->local.qpn) & 0x3ff) << qpContextQpnOffs) |
 				  ((static_cast<uint64_t>(qp->remote.rkey) & 0xffffffff));

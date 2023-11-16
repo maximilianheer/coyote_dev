@@ -11,12 +11,14 @@ cService* cService::cservice = nullptr;
 /**
  * @brief Constructor
  * 
- * @param vfid
+ * @param vfid - Id of the targeted vFPGA
+ * @param priority - priority-based scheduling enabled 
+ * @param reorder - reordering in scheduling enabled 
  */
 cService::cService(int32_t vfid, bool priority, bool reorder) 
     : vfid(vfid), cSched(vfid, priority, reorder) 
 {
-    // ID
+    // ID - create service- and socket-IDs as strings based on the vfids. 
     service_id = ("coyote-daemon-vfid-" + std::to_string(vfid)).c_str();
     socket_name = ("/tmp/coyote-daemon-vfid-" + std::to_string(vfid)).c_str();
 }
@@ -26,7 +28,7 @@ cService::cService(int32_t vfid, bool priority, bool reorder)
 // ======-------------------------------------------------------------------------------
 
 /**
- * @brief Signal handler 
+ * @brief Signal handler - Wrapper with official name 
  * 
  * @param signum : Kill signal
  */
@@ -35,18 +37,31 @@ void cService::sig_handler(int signum)
     cservice->my_handler(signum);
 }
 
+/**
+ * @brief Actual signal handler to deal with an incoming SIGTERM signal. 
+ * 
+ * @param signum - Kill signal 
+*/
 void cService::my_handler(int signum) 
 {
+    // Only handle the incoming SIGTERM, all other signals leave unhandled again
     if(signum == SIGTERM) {
+        // Store notice that KILL was sent to the process identified by pid
         syslog(LOG_NOTICE, "SIGTERM sent to %d\n", (int)pid);//cService::getPid());
+        // Remove socket name from the file system 
         unlink(socket_name.c_str());
 
         run_req = false;
         run_rsp = false;
+        
+        // Make sure to finish the two threads 
         thread_req.join();
         thread_rsp.join();
 
+        // Send kill-message to the process identified by pid
         kill(pid, SIGTERM);
+
+        // Log everything and turn off 
         syslog(LOG_NOTICE, "Exiting");
         closelog();
         exit(EXIT_SUCCESS);
@@ -60,55 +75,60 @@ void cService::my_handler(int signum)
 // ======-------------------------------------------------------------------------------
 
 /**
- * @brief Initialize the daemon service
+ * @brief Initialize the daemon service (a.k.a. cService), create child processes and set permission rights 
  * 
  */
 void cService::daemon_init()
 {
     // Fork
     DBG3("Forking...");
+
+    // Create a new child process and store its pid 
     pid = fork();
     if(pid < 0 ) 
         exit(EXIT_FAILURE);
     if(pid > 0 ) 
         exit(EXIT_SUCCESS);
 
-    // Sid
+    // Sid - create a session and check if it worked out as expected
     if(setsid() < 0) 
         exit(EXIT_FAILURE);
 
     // Signal handler
+
+    // For SIGTERM, point to the own sig_handler here in cService
     signal(SIGTERM, cService::sig_handler);
+    // Ignore both SIGCHILD and SIGHUP
     signal(SIGCHLD, SIG_IGN);
     signal(SIGHUP, SIG_IGN);
 
-    // Fork
+    // Fork - Create another child process and check if that worked out as expected 
     pid = fork();
     if(pid < 0 ) 
         exit(EXIT_FAILURE);
     if(pid > 0 ) 
         exit(EXIT_SUCCESS);
 
-    // Permissions
+    // Permissions - everything is allowed for all processes (original and forked children)
     umask(0);
 
-    // Cd
+    // Cd - change to home directory 
     if((chdir("/")) < 0) {
         exit(EXIT_FAILURE);
     }
 
-    // Syslog
+    // Syslog - Log that the service was successfully started 
     openlog(service_id.c_str(), LOG_NOWAIT | LOG_PID, LOG_USER);
     syslog(LOG_NOTICE, "Successfully started %s", service_id.c_str());
 
-    // Close fd
+    // Close fd - close filedescriptors for standard in, standard out and standard error 
     close(STDIN_FILENO);
     close(STDOUT_FILENO);
     close(STDERR_FILENO);
 }
 
 /**
- * @brief Initialize listening socket
+ * @brief Initialize listening socket for UNIX filesystem communication (local interprocess communication)
  * 
  */
 void cService::socket_init() 
@@ -119,16 +139,20 @@ void cService::socket_init()
     struct sockaddr_un server;
     socklen_t len;
 
+    // Create the socket for AF_UNIX communication and check for success 
     if((sockfd = socket(AF_UNIX, SOCK_STREAM, 0)) == -1) {
         syslog(LOG_ERR, "Error creating a server socket");
         exit(EXIT_FAILURE);
     }
 
+    // Set server: AF_UNIX, copy path from socket_name
     server.sun_family = AF_UNIX;
     strcpy(server.sun_path, socket_name.c_str());
+    // Unlink the server so that it gets deleted when it's not used anymore 
     unlink(server.sun_path);
     len = strlen(server.sun_path) + sizeof(server.sun_family);
     
+    // Bind the socket and check for success of that operation 
     if(bind(sockfd, (struct sockaddr *)&server, len) == -1) {
         syslog(LOG_ERR, "Error bind()");
         exit(EXIT_FAILURE);

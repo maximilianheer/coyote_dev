@@ -44,43 +44,51 @@ namespace fpga {
  */
 class cService : public cSched {
 private: 
-    // Singleton
+    // Singleton - guarantee that exactly one cService exists for one vFPGA
     static cService *cservice;
 
-    // Forks
+    // Forks - Process ID
     pid_t pid;
 
-    // ID
+    // ID - vFID to identify the vFPGA, service_id to identify the service itself
     int32_t vfid = { -1 };
     string service_id;
 
-    // Threads
+    // Threads for request and response: Both actual threads and booleans to store interaction with them
     bool run_req = { false };
     thread thread_req;
     bool run_rsp = { false };
     thread thread_rsp;
 
-    // Conn
+    // Connection - Sockets. Socket name, file descriptor and current ID. 
     string socket_name;
     int sockfd;
     int curr_id = { 0 };
 
-    // Clients
+    // Clients - map of clients (which are cThreads via cProcesses) and a mutex to make their accesses safe
     mutex mtx_cli;
     unordered_map<int, std::unique_ptr<cThread>> clients;
 
-    // Task map
+    // Task map - holds functions that return int32 and take a cProcess and a vector as input
     unordered_map<int, std::function<int32_t(cProcess*, std::vector<uint64_t>)>> task_map;
 
+    // Constructor of the class - takes vfid, priority and reorder 
     cService(int32_t vfid, bool priority = true, bool reorder = true);
 
+    // Actually starts the daemon / cService
     void daemon_init();
+
+    // Inits the socket for networking connections 
     void socket_init();
+
+    // Accepts incoming connections via the socket 
     void accept_connection();
 
+    // Signal handlers - sig_handler is just the conformal wrapper for my_handler
     static void sig_handler(int signum);
     void my_handler(int signum);
 
+    // Functions to request and close processes / threads. 
     void process_requests();
     void process_responses();
 
@@ -113,6 +121,8 @@ public:
      * 
      */
     void addTask(int32_t oid, std::function<int32_t(cProcess*, std::vector<uint64_t>)> task);
+    
+    // Remove Task from the service, identified by oid
     void removeTask(int32_t oid);
 
 };

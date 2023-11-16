@@ -410,7 +410,7 @@ long fpga_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 
         break;
 
-    // rdma context
+    // RDMA Context - Called by cProcess -> writeQpContext to store local QPN, rkey, local and remote PSN, remote virtual address
     case IOCTL_WRITE_CTX:
         if (pd->en_rdma_0 || pd->en_rdma_1) {
             ret_val = copy_from_user(&tmp, (unsigned long*) arg, 4 * sizeof(unsigned long));
@@ -419,6 +419,13 @@ long fpga_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
             } else {
                 dbg_info("writing qp context ...");
                 spin_lock(&pd->stat_lock);
+
+                /** 
+                * New register mapping: 
+                * - rdma_X_qp_ctx[0] = QPN & rkey 
+                * - rdma_X_qp_ctx[1] = Local / Remote PSN
+                * - rdma_X_qp_ctx[2] = Virtual Address 
+                */
 
                 for (i = 0; i < 3; i++) {
                     tmp[0] ? (pd->fpga_stat_cnfg->rdma_1_qp_ctx[i] = tmp[i+1]) : 
@@ -433,7 +440,7 @@ long fpga_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
         }
         break;
 
-    // rdma connection
+    // rdma connection - Called by cProcess -> writeConnContext to store port, Remote / Local QPN, GID
     case IOCTL_WRITE_CONN:
         if (pd->en_rdma_0 || pd->en_rdma_1) {
             ret_val = copy_from_user(&tmp, (unsigned long*) arg, 4 * sizeof(unsigned long));
@@ -442,6 +449,13 @@ long fpga_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
             } else {
                 dbg_info("writing qp connection ...");
                 spin_lock(&pd->stat_lock);
+
+                /**
+                 * Register mapping: 
+                 * - rdma_X_qp_conn[0] = Port & Remote / Local QPN
+                 * - rdma_X_qp_conn[1] = GID[8] & GID[0]
+                 * - rdma_X_qp_conn[2] = GID[24] & GID[16]
+                */
 
                 for (i = 0; i < 3; i++) {
                     tmp[0] ? (pd->fpga_stat_cnfg->rdma_1_qp_conn[i] = tmp[i+1]) :

@@ -26,6 +26,7 @@ namespace fpga
 	 * @brief Construct a new cSched, bitstream handler
 	 *
 	 * @param vfid - vFPGA id
+	 * @param priority - 
 	 */
 	cSched::cSched(int32_t vfid, bool priority, bool reorder)
 		: vfid(vfid), priority(priority), reorder(reorder),
