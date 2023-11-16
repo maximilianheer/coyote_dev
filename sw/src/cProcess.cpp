@@ -780,32 +780,27 @@ void cProcess::doArpLookup(uint32_t ip_addr) {
  */
 void cProcess::writeQpContext(ibvQp *qp) {
     if(fcnfg.en_rdma) {
-        uint64_t offs[4]; 
-		offs[0] = fcnfg.qsfp;
-
-
-		/* offs[1] = (static_cast<uint64_t>(qp->local.qpn) & 0x3ff) << qpContextQpnOffs;
-
-		offs[2] = ((static_cast<uint64_t>(qp->local.psn) & 0xffffff) << qpContextLpsnOffs) | 
-				  ((static_cast<uint64_t>(qp->remote.psn) & 0xffffff) << qpContextRpsnOffs);
-
-		offs[3] = ((static_cast<uint64_t>((uint64_t)qp->remote.vaddr) & 0xffffffffffff) << qpContextVaddrOffs) | 
-				  ((static_cast<uint64_t>(qp->remote.rkey) & 0xffff) << qpContextRkeyOffs); */
-
+        uint64_t offs[5]; 
 
 		// New register layout:
-		// - offs[1] = local.qpn & remote.rkey
+		// - offs[0] = fcnfg.qfsp
+		// - offs[1] = local.qpn
 		// - offs[2] = local.psn & remote.psn
 		// - offs[3] = remote.vaddr (rkey stays there for historical reasons)
+		// - offs[4] = remote.rkey
 
-		offs[1] = ((static_cast<uint64_t>(qp->local.qpn) & 0x3ff) << qpContextQpnOffs) |
-				  ((static_cast<uint64_t>(qp->remote.rkey) & 0xffffffff));
+		offs[0] = fcnfg.qsfp;
+
+		offs[1] = (static_cast<uint64_t>(qp->local.qpn) & 0x3ff) << qpContextQpnOffs;
 
 		offs[2] = ((static_cast<uint64_t>(qp->local.psn) & 0xffffff) << qpContextLpsnOffs) | 
 				  ((static_cast<uint64_t>(qp->remote.psn) & 0xffffff) << qpContextRpsnOffs);
 
 		offs[3] = ((static_cast<uint64_t>((uint64_t)qp->remote.vaddr) & 0xffffffffffff) << qpContextVaddrOffs) | 
 				  ((static_cast<uint64_t>(qp->remote.rkey) & 0xffff) << qpContextRkeyOffs);
+
+		offs[4] = ((static_cast<uint64_t>(qp->remote.rkey) & 0xffffffff));
+
 
         if(ioctl(fd, IOCTL_WRITE_CTX, &offs))
 			throw std::runtime_error("ioctl_write_ctx() failed");

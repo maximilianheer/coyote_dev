@@ -436,19 +436,20 @@ struct fpga_stat_cnfg_regs {
     uint64_t net_1_mac; // 24
     uint64_t net_1_arp; // 25
     uint64_t tcp_0_offs[2]; // 26-27
-    uint64_t rdma_0_qp_ctx[3]; // 28-30
-    uint64_t rdma_0_qp_conn[3]; // 31-33
-    uint64_t tcp_1_offs[2]; // 34-35
-    uint64_t rdma_1_qp_ctx[3]; // 36-38
-    uint64_t rdma_1_qp_conn[3]; // 39-41
-    uint64_t net_drop_0[2]; // 42-43
-    uint64_t net_drop_clr_0; // 44
-    uint64_t net_drop_1[2]; // 45-46
-    uint64_t net_drop_clr_1; // 47
-    uint64_t reserved_2[16]; // 48-63
-    uint64_t xdma_debug[N_STAT_REGS]; // 64-96
-    uint64_t net_0_debug[N_STAT_REGS]; // 96-128
-    uint64_t net_1_debug[N_STAT_REGS]; // 128-160
+    // Ad 1 more register for both rdma_0_qp_ctx and rdma_1_qp_ctx to account for the rkey
+    uint64_t rdma_0_qp_ctx[4]; // 28-31
+    uint64_t rdma_0_qp_conn[3]; // 32-34
+    uint64_t tcp_1_offs[2]; // 35-36
+    uint64_t rdma_1_qp_ctx[4]; // 37-40
+    uint64_t rdma_1_qp_conn[3]; // 41-43
+    uint64_t net_drop_0[2]; // 44-45
+    uint64_t net_drop_clr_0; // 46
+    uint64_t net_drop_1[2]; // 47-48
+    uint64_t net_drop_clr_1; // 49
+    uint64_t reserved_2[16]; // 51-65
+    uint64_t xdma_debug[N_STAT_REGS]; // 66-98
+    uint64_t net_0_debug[N_STAT_REGS]; // 98-130
+    uint64_t net_1_debug[N_STAT_REGS]; // 130-162
 } __packed;
 
 /* FPGA dynamic config reg map */

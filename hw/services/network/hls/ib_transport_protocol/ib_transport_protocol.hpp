@@ -114,6 +114,7 @@ bool checkIfRethHeader(ibOpCode code);
 // Was 3 + 3*24 + 16 + 64 = 155 Bit, is now 171 bit (with full 32-bit rkey)
 struct qpContext
 {
+	// I'm not sure which role the order of these fields play in here when receiving values from s_axis_qp_interface
 	qpState		newState;
 	ap_uint<24> qp_num;
 	ap_uint<24> remote_psn;

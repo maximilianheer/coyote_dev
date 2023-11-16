@@ -273,70 +273,74 @@ localparam integer TCP_0_RX_OFFS_REG      = 26;
 // 27 - (RW) : TCP/IP tx ddr offset
 localparam integer TCP_0_TX_OFFS_REG      = 27;
 // RDMA
-// 28 - 30 (RW) : Write QP context
+// 28 - 30 (RW) : Write QP context - add one additional context register just for the rkey
 localparam integer RDMA_0_CTX_REG_0       = 28;
 localparam integer RDMA_0_CTX_REG_1       = 29;
 localparam integer RDMA_0_CTX_REG_2       = 30;
+localparam integer RDMA_0_CTX_REG_3       = 31; 
+
 // 31 - 33 (RW) : Write QP connection
-localparam integer RDMA_0_CONN_REG_0      = 31;
-localparam integer RDMA_0_CONN_REG_1      = 32;
-localparam integer RDMA_0_CONN_REG_2      = 33;
+localparam integer RDMA_0_CONN_REG_0      = 32;
+localparam integer RDMA_0_CONN_REG_1      = 33;
+localparam integer RDMA_0_CONN_REG_2      = 34;
 // TCP/IP
 // 34 - (RW) : TCP/IP rx ddr offset
-localparam integer TCP_1_RX_OFFS_REG      = 34;
+localparam integer TCP_1_RX_OFFS_REG      = 35;
 // 35 - (RW) : TCP/IP tx ddr offset
-localparam integer TCP_1_TX_OFFS_REG      = 35;
+localparam integer TCP_1_TX_OFFS_REG      = 36;
 // RDMA
-// 36 - 38 (RW) : Write QP context
-localparam integer RDMA_1_CTX_REG_0       = 36;
-localparam integer RDMA_1_CTX_REG_1       = 37;
-localparam integer RDMA_1_CTX_REG_2       = 38;
+// 36 - 38 (RW) : Write QP context - add one additional context register just for the rkey 
+localparam integer RDMA_1_CTX_REG_0       = 37;
+localparam integer RDMA_1_CTX_REG_1       = 38;
+localparam integer RDMA_1_CTX_REG_2       = 39;
+localparam integer RDMA_1_CTX_REG_3       = 40;
+
 // 39 - 41 (RW) : Write QP connection
-localparam integer RDMA_1_CONN_REG_0      = 39;
-localparam integer RDMA_1_CONN_REG_1      = 40;
-localparam integer RDMA_1_CONN_REG_2      = 41;
+localparam integer RDMA_1_CONN_REG_0      = 41;
+localparam integer RDMA_1_CONN_REG_1      = 42;
+localparam integer RDMA_1_CONN_REG_2      = 43;
 // Dropper
-localparam integer NET_DROP_RX_0          = 42;
-localparam integer NET_DROP_TX_0          = 43;
-localparam integer NET_DROP_CLEAR_0       = 44;
-localparam integer NET_DROP_RX_1          = 45;
-localparam integer NET_DROP_TX_1          = 46;
-localparam integer NET_DROP_CLEAR_1       = 47;
+localparam integer NET_DROP_RX_0          = 44;
+localparam integer NET_DROP_TX_0          = 45;
+localparam integer NET_DROP_CLEAR_0       = 46;
+localparam integer NET_DROP_RX_1          = 47;
+localparam integer NET_DROP_TX_1          = 48;
+localparam integer NET_DROP_CLEAR_1       = 49;
 
 // XDMA STATS
-localparam integer XDMA_STAT_0_BPSS       = 64;
-localparam integer XDMA_STAT_0_CMPL       = 65;
-localparam integer XDMA_STAT_0_AXIS       = 66;
-localparam integer XDMA_STAT_1_BPSS       = 67;
-localparam integer XDMA_STAT_1_CMPL       = 68;
-localparam integer XDMA_STAT_1_AXIS       = 69;
-localparam integer XDMA_STAT_2_BPSS       = 70;
-localparam integer XDMA_STAT_2_CMPL       = 71;
-localparam integer XDMA_STAT_2_AXIS       = 72;
-localparam integer XDMA_STAT_3_BPSS       = 73;
-localparam integer XDMA_STAT_3_CMPL       = 74;
-localparam integer XDMA_STAT_3_AXIS       = 75;
+localparam integer XDMA_STAT_0_BPSS       = 66;
+localparam integer XDMA_STAT_0_CMPL       = 67;
+localparam integer XDMA_STAT_0_AXIS       = 68;
+localparam integer XDMA_STAT_1_BPSS       = 69;
+localparam integer XDMA_STAT_1_CMPL       = 70;
+localparam integer XDMA_STAT_1_AXIS       = 71;
+localparam integer XDMA_STAT_2_BPSS       = 72;
+localparam integer XDMA_STAT_2_CMPL       = 73;
+localparam integer XDMA_STAT_2_AXIS       = 74;
+localparam integer XDMA_STAT_3_BPSS       = 75;
+localparam integer XDMA_STAT_3_CMPL       = 76;
+localparam integer XDMA_STAT_3_AXIS       = 77;
 
 // NET STATS
-localparam integer NET_STAT_0_PKG_REG     = 96;
-localparam integer NET_STAT_0_ARP_REG     = 97;
-localparam integer NET_STAT_0_ICMP_REG    = 98;
-localparam integer NET_STAT_0_TCP_REG     = 99;
-localparam integer NET_STAT_0_RDMA_REG    = 100;
-localparam integer NET_STAT_0_IBV_REG     = 101;
-localparam integer NET_STAT_0_DROP_REG    = 102;
-localparam integer NET_STAT_0_SESS_REG    = 103;
-localparam integer NET_STAT_0_DOWN_REG    = 104;
+localparam integer NET_STAT_0_PKG_REG     = 98;
+localparam integer NET_STAT_0_ARP_REG     = 99;
+localparam integer NET_STAT_0_ICMP_REG    = 100;
+localparam integer NET_STAT_0_TCP_REG     = 101;
+localparam integer NET_STAT_0_RDMA_REG    = 102;
+localparam integer NET_STAT_0_IBV_REG     = 103;
+localparam integer NET_STAT_0_DROP_REG    = 104;
+localparam integer NET_STAT_0_SESS_REG    = 105;
+localparam integer NET_STAT_0_DOWN_REG    = 106;
 
-localparam integer NET_STAT_1_PKG_REG     = 128;
-localparam integer NET_STAT_1_ARP_REG     = 129;
-localparam integer NET_STAT_1_ICMP_REG    = 130;
-localparam integer NET_STAT_1_TCP_REG     = 131;
-localparam integer NET_STAT_1_RDMA_REG    = 132;
-localparam integer NET_STAT_1_IBV_REG     = 133;
-localparam integer NET_STAT_1_DROP_REG    = 134;
-localparam integer NET_STAT_1_SESS_REG    = 135;
-localparam integer NET_STAT_1_DOWN_REG    = 136;
+localparam integer NET_STAT_1_PKG_REG     = 130;
+localparam integer NET_STAT_1_ARP_REG     = 131;
+localparam integer NET_STAT_1_ICMP_REG    = 132;
+localparam integer NET_STAT_1_TCP_REG     = 133;
+localparam integer NET_STAT_1_RDMA_REG    = 134;
+localparam integer NET_STAT_1_IBV_REG     = 135;
+localparam integer NET_STAT_1_DROP_REG    = 136;
+localparam integer NET_STAT_1_SESS_REG    = 137;
+localparam integer NET_STAT_1_DOWN_REG    = 138;
 
 // ---------------------------------------------------------------------------------------- 
 // Write process 
@@ -578,11 +582,18 @@ always_ff @(posedge aclk) begin
               slv_reg[RDMA_0_CTX_REG_1][(i*8)+:8] <= s_axi_ctrl.wdata[(i*8)+:8];
             end
           end
-        RDMA_0_CTX_REG_2: // Context final
+        RDMA_0_CTX_REG_2: // Context
           for (int i = 0; i < AXIL_DATA_BITS/8; i++) begin
             if(s_axi_ctrl.wstrb[i]) begin
               slv_reg[RDMA_0_CTX_REG_2][(i*8)+:8] <= s_axi_ctrl.wdata[(i*8)+:8];
-              m_rdma_0_qp_interface.valid <= 1'b1;
+              // m_rdma_0_qp_interface.valid <= 1'b1;
+            end
+          end
+        RDMA_0_CTX_REG_3: // Context Final
+          for (int i = 0; i < AXIL_DATA_BITS/8; i++) begin
+            if(s_axi_ctrl_wstrb[i]) begin
+              slv_reg[RDMA_0_CTX_REG_3][(i*8)+:8] <= s_axi_ctrl.wdata[(i*8)+:8];
+              m_rdma_0_qp_interface.valid <= 1'b1; 
             end
           end
         RDMA_0_CONN_REG_0: // Connection
@@ -619,13 +630,21 @@ always_ff @(posedge aclk) begin
               slv_reg[RDMA_1_CTX_REG_1][(i*8)+:8] <= s_axi_ctrl.wdata[(i*8)+:8];
             end
           end
-        RDMA_1_CTX_REG_2: // Context final
+        RDMA_1_CTX_REG_2: // Context
           for (int i = 0; i < AXIL_DATA_BITS/8; i++) begin
             if(s_axi_ctrl.wstrb[i]) begin
               slv_reg[RDMA_1_CTX_REG_2][(i*8)+:8] <= s_axi_ctrl.wdata[(i*8)+:8];
+              // m_rdma_1_qp_interface.valid <= 1'b1;
+            end
+          end
+        RDMA_1_CTX_REG_3: // Context final
+          for (int i = 0; i < AXIL_DATA_BITS/8; i++) begin
+            if(s_axi_ctrl.wstrb[i]) begin
+              slv_reg[RDMA_1_CTX_REG_3][(i*8)+:8] <= s_axi_ctrl.wdata[(i*8)+:8];
               m_rdma_1_qp_interface.valid <= 1'b1;
             end
           end
+
         RDMA_1_CONN_REG_0: // Connection
           for (int i = 0; i < AXIL_DATA_BITS/8; i++) begin
             if(s_axi_ctrl.wstrb[i]) begin
@@ -804,8 +823,10 @@ always_ff @(posedge aclk) begin
           axi_rdata <= slv_reg[RDMA_0_CTX_REG_0];
         RDMA_0_CTX_REG_1: // Context
           axi_rdata <= slv_reg[RDMA_0_CTX_REG_1];
-        RDMA_0_CTX_REG_2: // Context final
+        RDMA_0_CTX_REG_2: // Context
           axi_rdata <= slv_reg[RDMA_0_CTX_REG_2];
+        RDMA_0_CTX_REG_3: // Context final
+          axi_rdata <= slv_reg[RDMA_0_CTX_REG_3]; 
         RDMA_0_CONN_REG_0: // Connection
           axi_rdata <= slv_reg[RDMA_0_CONN_REG_0];
         RDMA_0_CONN_REG_1: // Connection
@@ -819,8 +840,10 @@ always_ff @(posedge aclk) begin
           axi_rdata <= slv_reg[RDMA_1_CTX_REG_0];
         RDMA_1_CTX_REG_1: // Context
           axi_rdata <= slv_reg[RDMA_1_CTX_REG_1];
-        RDMA_1_CTX_REG_2: // Context final
+        RDMA_1_CTX_REG_2: // Context
           axi_rdata <= slv_reg[RDMA_1_CTX_REG_2];
+        RDMA_1_CTX_REG_3: // Context final
+          axi_rdata <= slv_reg[RDMA_1_CTX_REG_3]; 
         RDMA_1_CONN_REG_0: // Connection
           axi_rdata <= slv_reg[RDMA_1_CONN_REG_0];
         RDMA_1_CONN_REG_1: // Connection
@@ -1092,7 +1115,8 @@ end
 // RDMA qp interface
 assign m_rdma_0_qp_interface.data[0+:56]   = slv_reg[RDMA_0_CTX_REG_0][0+:56]; // local qpn, qp state 
 assign m_rdma_0_qp_interface.data[56+:48]  = slv_reg[RDMA_0_CTX_REG_1][0+:48]; // local psn, remote psn
-assign m_rdma_0_qp_interface.data[104+:64] = slv_reg[RDMA_0_CTX_REG_2][0+:64]; // vaddr, remote key
+assign m_rdma_0_qp_interface.data[104+:48] = slv_reg[RDMA_0_CTX_REG_2][17+:48]; // vaddr
+assign m_rdma_0_qp_interface.data[152+:32] = slv_reg[RDMA_0_CTX_REG_3][0+:32]; // remote key
 
 // RDMA qp connection interface
 assign m_rdma_0_conn_interface.data[39:0] = slv_reg[RDMA_0_CONN_REG_0][39:0]; // remote qpn, local qpn (24?)
@@ -1107,7 +1131,8 @@ assign m_rdma_0_conn_interface.data[183:168] = slv_reg[RDMA_0_CONN_REG_0][55:40]
 // RDMA qp interface
 assign m_rdma_1_qp_interface.data[0+:56]   = slv_reg[RDMA_1_CTX_REG_0][0+:56]; // local qpn, qp state 
 assign m_rdma_1_qp_interface.data[56+:48]  = slv_reg[RDMA_1_CTX_REG_1][0+:48]; // local psn, remote psn
-assign m_rdma_1_qp_interface.data[104+:64] = slv_reg[RDMA_1_CTX_REG_2][0+:64]; // vaddr, remote key
+assign m_rdma_1_qp_interface.data[104+:48] = slv_reg[RDMA_1_CTX_REG_2][17+:48]; // vaddr
+assign m_rdma_1_qp_interface.data[152+:32] = slv_reg[RDMA_1_CTX_REG_3][0+:32]; // remote key
 
 // RDMA qp connection interface
 assign m_rdma_1_conn_interface.data[39:0] = slv_reg[RDMA_1_CONN_REG_0][39:0]; // remote qpn, local qpn (24?)

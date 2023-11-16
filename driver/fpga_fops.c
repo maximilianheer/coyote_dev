@@ -422,12 +422,13 @@ long fpga_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 
                 /** 
                 * New register mapping: 
-                * - rdma_X_qp_ctx[0] = QPN & rkey 
+                * - rdma_X_qp_ctx[0] = QPN (and QP-state, whereever this might come from...) 
                 * - rdma_X_qp_ctx[1] = Local / Remote PSN
                 * - rdma_X_qp_ctx[2] = Virtual Address 
+                * - rdma_X_qp_ctx[3] = rkey
                 */
 
-                for (i = 0; i < 3; i++) {
+                for (i = 0; i < 4; i++) {
                     tmp[0] ? (pd->fpga_stat_cnfg->rdma_1_qp_ctx[i] = tmp[i+1]) : 
                         (pd->fpga_stat_cnfg->rdma_0_qp_ctx[i] = tmp[i+1]);
                 }
