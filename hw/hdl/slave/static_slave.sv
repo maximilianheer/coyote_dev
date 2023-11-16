@@ -591,7 +591,7 @@ always_ff @(posedge aclk) begin
           end
         RDMA_0_CTX_REG_3: // Context Final
           for (int i = 0; i < AXIL_DATA_BITS/8; i++) begin
-            if(s_axi_ctrl_wstrb[i]) begin
+            if(s_axi_ctrl.wstrb[i]) begin
               slv_reg[RDMA_0_CTX_REG_3][(i*8)+:8] <= s_axi_ctrl.wdata[(i*8)+:8];
               m_rdma_0_qp_interface.valid <= 1'b1; 
             end
