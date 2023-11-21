@@ -37,13 +37,14 @@ using namespace hls;
 
 #define DISABLE_CRC_CHECK
 
+// Definition of the CRC-module as inserted in the datapath of the networking stack
 template <int WIDTH, int INSTID>
 void crc(	
-	// RX
+	// RX - incoming packets. Received through s_axis, passed on through m_axis. 
     hls::stream<net_axis<WIDTH> >&  s_axis_rx_data,
     hls::stream<net_axis<WIDTH> >&  m_axis_rx_data,
     
-    // TX
+    // TX - outgoing packets. Received through s_axis, passed on through m_axis. 
     hls::stream<net_axis<WIDTH> >&  s_axis_tx_data,
     hls::stream<net_axis<WIDTH> >&  m_axis_tx_data,
     

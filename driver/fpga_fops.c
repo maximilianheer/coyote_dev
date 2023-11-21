@@ -413,7 +413,7 @@ long fpga_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
     // RDMA Context - Called by cProcess -> writeQpContext to store local QPN, rkey, local and remote PSN, remote virtual address
     case IOCTL_WRITE_CTX:
         if (pd->en_rdma_0 || pd->en_rdma_1) {
-            ret_val = copy_from_user(&tmp, (unsigned long*) arg, 4 * sizeof(unsigned long));
+            ret_val = copy_from_user(&tmp, (unsigned long*) arg, 5 * sizeof(unsigned long));
             if (ret_val != 0) {
                 dbg_info("user data could not be coppied, return %d\n", ret_val);
             } else {
