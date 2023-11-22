@@ -35,7 +35,11 @@ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 using namespace hls;
 
+// Disable CRC on the RX path - no check of the CRC of incoming packets 
 #define DISABLE_CRC_CHECK
+
+// Disable CRC on the TX path - no calculation of the CRC for outgoing packets
+#define DISABLE_CRC_CALCULATION
 
 // Definition of the CRC-module as inserted in the datapath of the networking stack
 template <int WIDTH, int INSTID>

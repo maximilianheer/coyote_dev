@@ -441,13 +441,13 @@ void insert_icrc(
 #pragma HLS inline off
 #pragma HLS pipeline II=1
 
-// #ifndef DISABLE_CRC_CHECK
+#ifndef DISABLE_CRC_CALCULATION
 	enum fsmState {CRC, FWD, POST};
 	static fsmState ii_state = CRC;
-// #else
-	// enum fsmState {FWD, POST};
-	// static fsmState ii_state = FWD;
-// #endif
+#else
+	enum fsmState {FWD, POST};
+	static fsmState ii_state = FWD;
+#endif
 	static ap_uint<32> crc = 0xdeadbeef;
 
 	net_axis<WIDTH> currWord;
@@ -455,7 +455,7 @@ void insert_icrc(
 
 	switch(ii_state)
 	{
-// #ifndef DISABLE_CRC_CHECK
+#ifndef DISABLE_CRC_CALCULATION
 	case CRC:
 		if (!crcIn.empty())
 		{
@@ -465,7 +465,7 @@ void insert_icrc(
 			ii_state = FWD;
 		}
 		break;
-// #endif
+#endif
 	case FWD:
 		if (!input.empty())
 		{
@@ -481,9 +481,9 @@ void insert_icrc(
 				}
 				else
 				{
-// #ifndef DISABLE_CRC_CHECK
+#ifndef DISABLE_CRC_CALCULATION
 					ii_state = CRC;
-// #endif
+#endif
 					ap_uint<64> keep = currWord.keep; //this is required to make the case statement work for all widths
 					switch(keep)
 					{
@@ -563,11 +563,11 @@ void insert_icrc(
 		sendWord.keep((WIDTH/8)-1, 4) = 0;
 		sendWord.last = 1;
 		output.write(sendWord);
-// #ifndef DISABLE_CRC_CHECK
+#ifndef DISABLE_CRC_CALCULATION
 		ii_state = CRC;
-// #else
-//		ii_state = FWD;
-// #endif
+#else
+		ii_state = FWD;
+#endif
 		break;
 	} //switch
 }
@@ -699,7 +699,7 @@ void crc(
 	/*
 	 * TX
 	 */
-// #ifndef DISABLE_CRC_CHECK
+#ifndef DISABLE_CRC_CHECK
 	static stream<net_axis<WIDTH> > tx_maskedDataFifo("tx_maskedDataFifo");
 	static stream<net_axis<WIDTH> > tx_maskedDataFifo1("tx_maskedDataFifo1");
 	static stream<net_axis<WIDTH> > tx_maskedDataFifo2("tx_maskedDataFifo2");
@@ -714,18 +714,18 @@ void crc(
 	#pragma HLS STREAM depth=2 variable=crcFifo
 	#pragma HLS STREAM depth=2 variable=crcFifo1
 	#pragma HLS STREAM depth=2 variable=crcFifo2
-// #endif
+#endif
 
-// #ifdef DISABLE_CRC_CHECK
-// 	insert_icrc<WIDTH, INSTID>(s_axis_tx_data, m_axis_tx_data);
-// #else
+#ifdef DISABLE_CRC_CHECK
+	insert_icrc<WIDTH, INSTID>(s_axis_tx_data, m_axis_tx_data);
+#else
 	mask_header_fields<WIDTH, INSTID>(s_axis_tx_data, tx_crcDataFifo, tx_maskedDataFifo);
 	round_robin_arbiter<WIDTH, INSTID>(tx_maskedDataFifo, tx_maskedDataFifo1, tx_maskedDataFifo2);
 	compute_crc32<WIDTH, INSTID>(tx_maskedDataFifo1, crcFifo1);
 	compute_crc32<WIDTH, INSTID>(tx_maskedDataFifo2, crcFifo2);
 	round_robin_merger<INSTID>(crcFifo1, crcFifo2, crcFifo);
 	insert_icrc<WIDTH, INSTID>(crcFifo, tx_crcDataFifo, m_axis_tx_data);
-// #endif
+#endif
 
 }
 
