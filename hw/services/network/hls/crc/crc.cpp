@@ -432,9 +432,9 @@ void compute_crc32(	stream<net_axis<WIDTH> >& input,
 //packets are multiple of 4 bytes, crc is 4 bytes
 template <int WIDTH, int INSTID = 0>
 void insert_icrc(
-// #ifndef DISABLE_CRC_CHECK
+#ifndef DISABLE_CRC_CALCULATION
 					stream<ap_uint<32> >& crcIn,
-// #endif
+#endif
 					stream<net_axis<WIDTH> >& input,
 					stream<net_axis<WIDTH> >& output)
 {
@@ -699,7 +699,7 @@ void crc(
 	/*
 	 * TX
 	 */
-#ifndef DISABLE_CRC_CHECK
+#ifndef DISABLE_CRC_CALCULATION
 	static stream<net_axis<WIDTH> > tx_maskedDataFifo("tx_maskedDataFifo");
 	static stream<net_axis<WIDTH> > tx_maskedDataFifo1("tx_maskedDataFifo1");
 	static stream<net_axis<WIDTH> > tx_maskedDataFifo2("tx_maskedDataFifo2");
@@ -716,7 +716,7 @@ void crc(
 	#pragma HLS STREAM depth=2 variable=crcFifo2
 #endif
 
-#ifdef DISABLE_CRC_CHECK
+#ifdef DISABLE_CRC_CALCULATION
 	insert_icrc<WIDTH, INSTID>(s_axis_tx_data, m_axis_tx_data);
 #else
 	mask_header_fields<WIDTH, INSTID>(s_axis_tx_data, tx_crcDataFifo, tx_maskedDataFifo);

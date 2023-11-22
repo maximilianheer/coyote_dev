@@ -801,7 +801,7 @@ void cProcess::writeQpContext(ibvQp *qp) {
 
 		offs[4] = ((static_cast<uint64_t>(qp->remote.rkey) & 0xffffffff));
 
-
+		// Call driver function to store the values in the driver registers
         if(ioctl(fd, IOCTL_WRITE_CTX, &offs))
 			throw std::runtime_error("ioctl_write_ctx() failed");
     }
@@ -816,6 +816,10 @@ void cProcess::writeQpContext(ibvQp *qp) {
 void cProcess::writeConnContext(ibvQp *qp, uint32_t port) {
     if(fcnfg.en_rdma) {
         uint64_t offs[4];
+
+		// New register layout: 
+		// - offs[0]: fcnfg.qsfp
+		// - offs[1]: Port, Remote QPN, Local QPN
 
 		offs[0] = fcnfg.qsfp;
 

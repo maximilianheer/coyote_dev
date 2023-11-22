@@ -412,12 +412,16 @@ long fpga_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 
     // RDMA Context - Called by cProcess -> writeQpContext to store local QPN, rkey, local and remote PSN, remote virtual address
     case IOCTL_WRITE_CTX:
+        // Check if RDMA is enabled after all 
         if (pd->en_rdma_0 || pd->en_rdma_1) {
+            // Copy the 5 registers from user that hold values for QPN, rkey, lpsn, rpsn, vaddr
             ret_val = copy_from_user(&tmp, (unsigned long*) arg, 5 * sizeof(unsigned long));
             if (ret_val != 0) {
                 dbg_info("user data could not be coppied, return %d\n", ret_val);
             } else {
                 dbg_info("writing qp context ...");
+
+                // Obtain the spin lock 
                 spin_lock(&pd->stat_lock);
 
                 /** 
@@ -428,6 +432,7 @@ long fpga_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
                 * - rdma_X_qp_ctx[3] = rkey
                 */
 
+                // Write user data into registers 
                 for (i = 0; i < 4; i++) {
                     tmp[0] ? (pd->fpga_stat_cnfg->rdma_1_qp_ctx[i] = tmp[i+1]) : 
                         (pd->fpga_stat_cnfg->rdma_0_qp_ctx[i] = tmp[i+1]);
@@ -444,11 +449,15 @@ long fpga_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
     // rdma connection - Called by cProcess -> writeConnContext to store port, Remote / Local QPN, GID
     case IOCTL_WRITE_CONN:
         if (pd->en_rdma_0 || pd->en_rdma_1) {
-            ret_val = copy_from_user(&tmp, (unsigned long*) arg, 5 * sizeof(unsigned long));
+
+            // Copy the 5 registers from user that hold values for port, rQPN, lQPN and GID
+            ret_val = copy_from_user(&tmp, (unsigned long*) arg, 4 * sizeof(unsigned long));
             if (ret_val != 0) {
                 dbg_info("user data could not be coppied, return %d\n", ret_val);
             } else {
                 dbg_info("writing qp connection ...");
+
+                // Obtain a spin lock. 
                 spin_lock(&pd->stat_lock);
 
                 /**
@@ -458,6 +467,7 @@ long fpga_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
                  * - rdma_X_qp_conn[2] = GID[24] & GID[16]
                 */
 
+                // Write user data into registers
                 for (i = 0; i < 3; i++) {
                     tmp[0] ? (pd->fpga_stat_cnfg->rdma_1_qp_conn[i] = tmp[i+1]) :
                         (pd->fpga_stat_cnfg->rdma_0_qp_conn[i] = tmp[i+1]);
