@@ -165,17 +165,21 @@ void cService::socket_init()
 }
 
 /**
- * @brief Accept connections
+ * @brief Accept connections via the socket for interprocess communication 
  * 
  */
 void cService::accept_connection()
 {
+    // Variables for storing incoming client connection 
     sockaddr_un client;
     socklen_t len = sizeof(client); 
+
+    // File Descriptor for the connection 
     int connfd;
     char recv_buf[recvBuffSize];
     int n;
 
+    // Try to accept an incoming connection 
     if((connfd = accept(sockfd, (struct sockaddr *)&client, &len)) == -1) {
         syslog(LOG_NOTICE, "No new connections");
     } else {
