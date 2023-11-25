@@ -1,45 +1,65 @@
 import lynxTypes::*;
 
 module rdma_flow (
+    // Incoming user commands 
     metaIntf.s                  s_req,
+    
+    // user commands to roce_v2_ip
     metaIntf.m                  m_req,
 
+    // Acks from roce_v2_ip
     metaIntf.s                  s_ack,
+
+    // Acks as responses to the user commands 
     metaIntf.m                  m_ack,
 
+    // Incoming clock and reset
     input  logic                aclk,
     input  logic                aresetn
 );
 
+// localparams for bitwidths
 localparam integer RDMA_N_OST = 16;
 localparam integer RDMA_OST_BITS = $clog2(RDMA_N_OST);
+
+// READ and WRITE opcode 
 localparam integer RD_OP = 0;
 localparam integer WR_OP = 1;
 
+// Definition of status variables for C and N (head, tail and issue)
 logic [1:0][N_REGIONS_BITS-1:0][PID_BITS-1:0][RDMA_OST_BITS-1:0] head_C = 0, head_N;
 logic [1:0][N_REGIONS_BITS-1:0][PID_BITS-1:0][RDMA_OST_BITS-1:0] tail_C = 0, tail_N;
 logic [1:0][N_REGIONS_BITS-1:0][PID_BITS-1:0] issued_C = 0, issued_N;
 
+// Further variables C and N for ACKs etc. 
 logic ssn_rd_C = 0, ssn_rd_N;
 logic [N_REGIONS_BITS-1:0] ack_vfid_C, ack_vfid_N;
 logic [PID_BITS-1:0] ack_pid_C, ack_pid_N;
 logic ack_rd_C, ack_rd_N;
 
+// Control and Data signals for the memory buffer 
+// Way selector
 logic [3:0] ssn_wr;
+// Memory Address 
 logic [1+N_REGIONS_BITS+PID_BITS+RDMA_OST_BITS-1:0] ssn_addr;
+// Data In 
 logic [31:0] ssn_in;
+// Data Out
 logic [31:0] ssn_out;
 
+// Definition of ACKs for reads 
 logic ack_rd;
 logic [N_REGIONS_BITS-1:0] ack_vfid;
 logic [PID_BITS-1:0] ack_pid;
 
+// Definition of Requests for reads
 logic req_rd;
 logic [N_REGIONS_BITS-1:0] req_vfid;
 logic [PID_BITS-1:0] req_pid;
 
 metaIntf #(.STYPE(rdma_ack_t)) ack_que_in ();
 
+// Definition of a memory as buffer 
 ram_sp_nc #(
     .ADDR_BITS(1+N_REGIONS_BITS+PID_BITS+RDMA_OST_BITS),
     .DATA_BITS(32)
@@ -52,7 +72,7 @@ ram_sp_nc #(
     .a_data_out(ssn_out)
 );
 
-// REG
+// REG - at every clock counter, switch from N to C
 always_ff @(posedge aclk) begin
     if(~aresetn) begin
         head_C <= 0;
@@ -78,6 +98,7 @@ end
 
 // Service
 always_comb begin
+    // Default case: Loop-back from C to N (opposed to always_ff)
     head_N = head_C;
     tail_N = tail_C;
     issued_N = issued_C;

@@ -72,7 +72,7 @@ module roce_stack (
 );
 
 //
-// SQ
+// SQ -- reframing of the user commands between rdma_flow and roce_v2_ip
 //
 metaIntf #(.STYPE(rdma_req_t)) rdma_sq ();
 `ifdef VITIS_HLS
@@ -110,7 +110,7 @@ always_comb begin
 end
 
 //
-// RD and WR interface
+// RD and WR interface - reframing of memory access commands 
 // 
 logic [RDMA_BASE_REQ_BITS-1:0] rd_cmd_data;
 logic [RDMA_BASE_REQ_BITS-1:0] wr_cmd_data;
@@ -136,7 +136,7 @@ assign m_rdma_wr_req.data.pid               = wr_cmd_data[VADDR_BITS+LEN_BITS+4+
 assign m_rdma_wr_req.data.vfid              = wr_cmd_data[VADDR_BITS+LEN_BITS+4+DEST_BITS+PID_BITS+:N_REGIONS_BITS];
 
 //
-// ACKs
+// ACKs - reframing of rdma_acks between rdma_flow and roce_v2_ip
 //
 metaIntf #(.STYPE(rdma_ack_t)) rdma_ack ();
 logic [RDMA_ACK_BITS-1:0] ack_meta_data;
@@ -146,7 +146,7 @@ assign rdma_ack.data.pid = ack_meta_data[1+:PID_BITS];
 assign rdma_ack.data.vfid = ack_meta_data[1+PID_BITS+:N_REGIONS_BITS]; 
 assign rdma_ack.data.ssn = ack_meta_data[1+RDMA_ACK_QPN_BITS+:RDMA_ACK_PSN_BITS]; // msn
 
-// Flow control
+// Flow control - controls flow of user commands 
 rdma_flow inst_rdma_flow (
     .aclk(nclk),
     .aresetn(nresetn),
@@ -166,7 +166,7 @@ ila_ack inst_ila_ack (
 */
 
 //
-// RoCE stack
+// RoCE stack - HLS stack for RDMA-networking
 //
 rocev2_ip rocev2_inst(
     .ap_clk(nclk), // input aclk
@@ -178,14 +178,14 @@ rocev2_ip rocev2_inst(
 `ifdef DBG_IBV
 `endif
 
-    // RX
+    // RX - network input 
     .s_axis_rx_data_TVALID(s_axis_rx.tvalid),
     .s_axis_rx_data_TREADY(s_axis_rx.tready),
     .s_axis_rx_data_TDATA(s_axis_rx.tdata),
     .s_axis_rx_data_TKEEP(s_axis_rx.tkeep),
     .s_axis_rx_data_TLAST(s_axis_rx.tlast),
     
-    // TX
+    // TX - network output
     .m_axis_tx_data_TVALID(m_axis_tx.tvalid),
     .m_axis_tx_data_TREADY(m_axis_tx.tready),
     .m_axis_tx_data_TDATA(m_axis_tx.tdata),
