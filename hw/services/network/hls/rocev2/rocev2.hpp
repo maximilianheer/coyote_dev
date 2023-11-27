@@ -27,6 +27,7 @@
 #pragma once
 
 #define IP_VERSION 4
+// #define RETRANS_EN
 
 #include "../axi_utils.hpp"
 #include "../ipv4/ipv4.hpp"
